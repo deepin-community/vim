@@ -145,6 +145,11 @@
 # define EXTERN_C
 #endif
 
+// Suppress Infinite warnings when compiling XS modules under macOS 12 Monterey.
+#if defined(__clang__) && defined(__clang_major__) && __clang_major__ > 11
+# pragma clang diagnostic ignored "-Wcompound-token-split-by-macro"
+#endif
+
 /* Compatibility hacks over */
 
 static PerlInterpreter *perl_interp = NULL;
@@ -773,7 +778,7 @@ perl_runtime_link_init(char *libname, int verbose)
 	    close_dll(hPerlLib);
 	    hPerlLib = NULL;
 	    if (verbose)
-		semsg((const char *)_(e_loadfunc), perl_funcname_table[i].name);
+		semsg((const char *)_(e_could_not_load_library_function_str), perl_funcname_table[i].name);
 	    return FAIL;
 	}
     }
@@ -873,7 +878,8 @@ msg_split(
     char_u *
 eval_to_string(
     char_u	*arg UNUSED,
-    int		dolist UNUSED)
+    int		convert UNUSED,
+    int		use_simple_function UNUSED)
 {
     return NULL;
 }
@@ -1030,7 +1036,6 @@ VIM_init(void)
 #ifdef DYNAMIC_PERL
 static char *e_noperl = N_("Sorry, this command is disabled: the Perl library could not be loaded.");
 #endif
-static char *e_perlsandbox = N_("E299: Perl evaluation forbidden in sandbox without the Safe module");
 
 /*
  * ":perl"
@@ -1084,7 +1089,7 @@ ex_perl(exarg_T *eap)
 	safe = perl_get_sv("VIM::safe", FALSE);
 # ifndef MAKE_TEST  /* avoid a warning for unreachable code */
 	if (safe == NULL || !SvTRUE(safe))
-	    emsg(_(e_perlsandbox));
+	    emsg(_(e_perl_evaluation_forbidden_in_sandbox_without_safe_module));
 	else
 # endif
 	{
@@ -1190,11 +1195,9 @@ perl_to_vim(SV *sv, typval_T *rettv)
 	case SVt_NULL:
 	    break;
 	case SVt_NV:	/* float */
-#ifdef FEAT_FLOAT
 	    rettv->v_type	= VAR_FLOAT;
 	    rettv->vval.v_float = SvNV(sv);
 	    break;
-#endif
 	case SVt_IV:	/* integer */
 	    if (!SvROK(sv)) { /* references should be string */
 		rettv->vval.v_number = SvIV(sv);
@@ -1361,7 +1364,7 @@ do_perleval(char_u *str, typval_T *rettv)
 	    safe = get_sv("VIM::safe", FALSE);
 # ifndef MAKE_TEST  /* avoid a warning for unreachable code */
 	    if (safe == NULL || !SvTRUE(safe))
-		emsg(_(e_perlsandbox));
+		emsg(_(e_perl_evaluation_forbidden_in_sandbox_without_safe_module));
 	    else
 # endif
 	    {
@@ -1374,6 +1377,7 @@ do_perleval(char_u *str, typval_T *rettv)
 		SPAGAIN;
 		SvREFCNT_dec(sv);
 		sv = POPs;
+		PUTBACK;
 	    }
 	}
 	else
@@ -1384,7 +1388,6 @@ do_perleval(char_u *str, typval_T *rettv)
 	    ref_map_free();
 	    err = SvPV(GvSV(PL_errgv), err_len);
 	}
-	PUTBACK;
 	FREETMPS;
 	LEAVE;
     }
@@ -1461,7 +1464,7 @@ ex_perldo(exarg_T *eap)
     FREETMPS;
     LEAVE;
     check_cursor();
-    update_screen(NOT_VALID);
+    update_screen(UPD_NOT_VALID);
     if (!length)
 	return;
 
@@ -1585,7 +1588,7 @@ SetOption(line)
     PPCODE:
     if (line != NULL)
 	do_set((char_u *)line, 0);
-    update_screen(NOT_VALID);
+    update_screen(UPD_NOT_VALID);
 
 void
 DoCommand(line)
@@ -1602,7 +1605,7 @@ Eval(str)
     PREINIT:
 	char_u *value;
     PPCODE:
-	value = eval_to_string((char_u *)str, TRUE);
+	value = eval_to_string((char_u *)str, TRUE, FALSE);
 	if (value == NULL)
 	{
 	    XPUSHs(sv_2mortal(newSViv(0)));
@@ -1778,7 +1781,7 @@ Cursor(win, ...)
       win->w_cursor.col = col;
       win->w_set_curswant = TRUE;
       check_cursor();		    /* put cursor on an existing line */
-      update_screen(NOT_VALID);
+      update_screen(UPD_NOT_VALID);
     }
 
 MODULE = VIM	    PACKAGE = VIBUF
@@ -1866,18 +1869,21 @@ Set(vimbuf, ...)
 	    {
 		aco_save_T	aco;
 
-		/* set curwin/curbuf for "vimbuf" and save some things */
+		/* Set curwin/curbuf for "vimbuf" and save some things. */
 		aucmd_prepbuf(&aco, vimbuf);
-
-		if (u_savesub(lnum) == OK)
+		if (curbuf == vimbuf)
 		{
-		    ml_replace(lnum, (char_u *)line, TRUE);
-		    changed_bytes(lnum, 0);
-		}
+		    /* Only when a window was found. */
+		    if (u_savesub(lnum) == OK)
+		    {
+			ml_replace(lnum, (char_u *)line, TRUE);
+			changed_bytes(lnum, 0);
+		    }
 
-		/* restore curwin/curbuf and a few other things */
-		aucmd_restbuf(&aco);
-		/* Careful: autocommands may have made "vimbuf" invalid! */
+		    /* restore curwin/curbuf and a few other things */
+		    aucmd_restbuf(&aco);
+		    /* Careful: autocommands may have made "vimbuf" invalid! */
+		}
 	    }
 	}
     }
@@ -1918,19 +1924,23 @@ Delete(vimbuf, ...)
 
 		    /* set curwin/curbuf for "vimbuf" and save some things */
 		    aucmd_prepbuf(&aco, vimbuf);
-
-		    if (u_savedel(lnum, 1) == OK)
+		    if (curbuf == vimbuf)
 		    {
-			ml_delete(lnum);
-			check_cursor();
-			deleted_lines_mark(lnum, 1L);
+			/* Only when a window was found. */
+			if (u_savedel(lnum, 1) == OK)
+			{
+			    ml_delete(lnum);
+			    check_cursor();
+			    deleted_lines_mark(lnum, 1L);
+			}
+
+			/* restore curwin/curbuf and a few other things */
+			aucmd_restbuf(&aco);
+			/* Careful: autocommands may have made "vimbuf"
+			 * invalid! */
 		    }
 
-		    /* restore curwin/curbuf and a few other things */
-		    aucmd_restbuf(&aco);
-		    /* Careful: autocommands may have made "vimbuf" invalid! */
-
-		    update_curbuf(VALID);
+		    update_curbuf(UPD_VALID);
 		}
 	    }
 	}
@@ -1960,18 +1970,21 @@ Append(vimbuf, ...)
 
 		/* set curwin/curbuf for "vimbuf" and save some things */
 		aucmd_prepbuf(&aco, vimbuf);
-
-		if (u_inssub(lnum + 1) == OK)
+		if (curbuf == vimbuf)
 		{
-		    ml_append(lnum, (char_u *)line, (colnr_T)0, FALSE);
-		    appended_lines_mark(lnum, 1L);
-		}
+		    /* Only when a window for "vimbuf" was found. */
+		    if (u_inssub(lnum + 1) == OK)
+		    {
+			ml_append(lnum, (char_u *)line, (colnr_T)0, FALSE);
+			appended_lines_mark(lnum, 1L);
+		    }
 
-		/* restore curwin/curbuf and a few other things */
-		aucmd_restbuf(&aco);
-		/* Careful: autocommands may have made "vimbuf" invalid! */
+		    /* restore curwin/curbuf and a few other things */
+		    aucmd_restbuf(&aco);
+		    /* Careful: autocommands may have made "vimbuf" invalid! */
+		    }
 
-		update_curbuf(VALID);
+		update_curbuf(UPD_VALID);
 	    }
 	}
     }

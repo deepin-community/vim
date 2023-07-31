@@ -656,7 +656,7 @@ drop_callback(void *cookie)
     // TODO here we could handle going to a specific position in the dropped
     // file (see src/gui_mac.c, deleted in 8.2.1422)
     // Update the screen display
-    update_screen(NOT_VALID);
+    update_screen(UPD_NOT_VALID);
 }
 
     // Really handle dropped files and folders.
@@ -3847,7 +3847,7 @@ gui_mch_get_font(
 
     if (name == 0 && be_fixed_font == 0) {
 	if (giveErrorIfMissing)
-			semsg(_(e_font), name);
+	    semsg(_(e_unknown_font_str), name);
 	return NOFONT;
     }
 
@@ -3914,7 +3914,7 @@ gui_mch_get_font(
 
     if (count_font_styles(family) <= 0) {
 	if (giveErrorIfMissing)
-			semsg(_(e_font), font->name);
+	    semsg(_(e_unknown_font_str), font->name);
 	delete font;
 	return NOFONT;
     }

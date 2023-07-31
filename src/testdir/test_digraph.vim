@@ -51,7 +51,7 @@ func Test_digraphs()
   call Put_Dig("'e")
   call Put_Dig("b'") " not defined
   call assert_equal(["á", "é", "'"], getline(line('.')-2,line('.')))
-  " Cicumflex
+  " Circumflex
   call Put_Dig("a>")
   call Put_Dig(">e")
   call Put_Dig("b>") " not defined
@@ -494,9 +494,8 @@ endfunc
 func Test_loadkeymap_error()
   CheckFeature keymap
   call assert_fails('loadkeymap', 'E105:')
-  call writefile(['loadkeymap', 'a'], 'Xkeymap')
+  call writefile(['loadkeymap', 'a'], 'Xkeymap', 'D')
   call assert_fails('source Xkeymap', 'E791:')
-  call delete('Xkeymap')
 endfunc
 
 " Test for the characters displayed on the screen when entering a digraph

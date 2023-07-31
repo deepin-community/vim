@@ -1,5 +1,15 @@
-vim (2:8.2.3565-deepin) stable; urgency=medium
+vim (2:8.0.0022-1) unstable; urgency=medium
 
-  * ['Rebuild  against by  current gcc 11.2']
+  Vim now ships with a defaults.vim file which, when the user has no vimrc,
+  enables some options that have historically been disabled by default.  This
+  is described in more detail at ":help defaults.vim".
 
- -- Deepin Packages Builder <packages@deepin.org>  Wed, 10 Aug 2022 21:31:19 +0800
+  Since defaults.vim is loaded when the user's vimrc would typically be
+  loaded, it will override any settings in /etc/vim/vimrc(.local).  In order
+  to disable the loading of defaults.vim, add
+
+    let g:skip_defaults_vim = 1
+
+  to /etc/vim/vimrc(.local).
+
+ -- James McCoy <jamessan@debian.org>  Tue, 04 Oct 2016 20:28:02 -0400
