@@ -1,7 +1,8 @@
 " Vim filetype plugin file
 " Language:	C
-" Maintainer:	Bram Moolenaar <Bram@vim.org>
-" Last Change:	2021 Sep 21
+" Maintainer:	The Vim Project <https://github.com/vim/vim>
+" Last Change:	2023 Aug 10
+" Former Maintainer:	Bram Moolenaar <Bram@vim.org>
 
 " Only do this when not done yet for this buffer
 if exists("b:did_ftplugin")
@@ -31,7 +32,8 @@ if exists('&ofu')
 endif
 
 " Set 'comments' to format dashed lists in comments.
-setlocal comments=sO:*\ -,mO:*\ \ ,exO:*/,s1:/*,mb:*,ex:*/,://
+" Also include ///, used for Doxygen.
+setlocal comments=sO:*\ -,mO:*\ \ ,exO:*/,s1:/*,mb:*,ex:*/,:///,://
 
 " In VMS C keywords contain '$' characters.
 if has("vms")

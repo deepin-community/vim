@@ -275,7 +275,7 @@ func Test_ruby_Vim_buffer_get()
   call assert_match('Xfoo1$', rubyeval('Vim::Buffer[1].name'))
   call assert_match('Xfoo2$', rubyeval('Vim::Buffer[2].name'))
   call assert_fails('ruby print Vim::Buffer[3].name',
-        \           "NoMethodError: undefined method `name' for nil:NilClass")
+        \           "NoMethodError: undefined method `name' for nil")
   %bwipe
 endfunc
 
@@ -304,10 +304,8 @@ func Test_ruby_Vim_evaluate()
   " on versions of Ruby.
   call assert_match('^Integer\|Fixnum$', rubyeval('Vim::evaluate("123").class'))
 
-  if has('float')
-    call assert_equal(1.23,       rubyeval('Vim::evaluate("1.23")'))
-    call assert_equal('Float',    rubyeval('Vim::evaluate("1.23").class'))
-  endif
+  call assert_equal(1.23,       rubyeval('Vim::evaluate("1.23")'))
+  call assert_equal('Float',    rubyeval('Vim::evaluate("1.23").class'))
 
   call assert_equal('foo',      rubyeval('Vim::evaluate("\"foo\"")'))
   call assert_equal('String',   rubyeval('Vim::evaluate("\"foo\"").class'))

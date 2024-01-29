@@ -7,10 +7,8 @@ func Test_compiler()
   CheckExecutable perl
   CheckFeature quickfix
 
-  " $LANG changes the output of Perl.
-  if $LANG != ''
-    unlet $LANG
-  endif
+  let save_LC_ALL = $LC_ALL
+  let $LC_ALL= "C"
 
   " %:S does not work properly with 'shellslash' set
   let save_shellslash = &shellslash
@@ -20,6 +18,9 @@ func Test_compiler()
   compiler perl
   call assert_equal('perl', b:current_compiler)
   call assert_fails('let g:current_compiler', 'E121:')
+
+  let verbose_efm = execute('verbose set efm')
+  call assert_match('Last set from .*[/\\]compiler[/\\]perl.vim ', verbose_efm)
 
   call setline(1, ['#!/usr/bin/perl -w', 'use strict;', 'my $foo=1'])
   w!
@@ -37,6 +38,7 @@ func Test_compiler()
   let &shellslash = save_shellslash
   call delete('Xfoo.pl')
   bw!
+  let $LC_ALL = save_LC_ALL
 endfunc
 
 func GetCompilerNames()

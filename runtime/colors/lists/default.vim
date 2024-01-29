@@ -1,5 +1,5 @@
 " Maintainer:  Drew Vogel <dvogel@sidejump.org>
-" Last Change: 2021 Jul 25
+" Last Change: 2023 Apr 19
 "
 " Replaced rgb.txt as the source of de facto standard color names. This is
 " sourced each time the colorscheme command is run. It is also sourced each
@@ -7,7 +7,8 @@
 " these colors by introducing a new colors/lists/default.vim file earlier in
 " the runtimepath.
 
-let s:keepcpo= &cpo
+" make sure line continuation works
+let s:keepcpo = &cpo
 set cpo&vim
 
 call extend(v:colornames, {
@@ -430,6 +431,8 @@ call extend(v:colornames, {
 			\ 'yellow2': '#eeee00',
 			\ 'yellow3': '#cdcd00',
 			\ 'yellow4': '#8b8b00',
+			\ 'dark yellow': '#8b8b00',
+			\ 'darkyellow': '#8b8b00',
 			\ 'gold1': '#ffd700',
 			\ 'gold2': '#eec900',
 			\ 'gold3': '#cdad00',
@@ -506,6 +509,8 @@ call extend(v:colornames, {
 			\ 'orangered2': '#ee4000',
 			\ 'orangered3': '#cd3700',
 			\ 'orangered4': '#8b2500',
+			\ 'light red': '#ff8b8b',
+			\ 'lightred': '#ff8b8b',
 			\ 'red1': '#ff0000',
 			\ 'red2': '#ee0000',
 			\ 'red3': '#cd0000',
@@ -538,6 +543,8 @@ call extend(v:colornames, {
 			\ 'violetred2': '#ee3a8c',
 			\ 'violetred3': '#cd3278',
 			\ 'violetred4': '#8b2252',
+			\ 'light magenta': '#ff8bff',
+			\ 'lightmagenta': '#ff8bff',
 			\ 'magenta1': '#ff00ff',
 			\ 'magenta2': '#ee00ee',
 			\ 'magenta3': '#cd00cd',
@@ -795,7 +802,7 @@ call extend(v:colornames, {
 			\ 'teal': '#008080'
 			\ }, 'keep')
 
-let &cpo= s:keepcpo
+let &cpo = s:keepcpo
 unlet s:keepcpo
 
 "vim: sw=4
