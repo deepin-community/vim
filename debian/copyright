@@ -3,7 +3,8 @@ Upstream-Name: vim
 Source: https://github.com/vim/vim
 
 Files: *
-Copyright: 2001-2021 Bram Moolenaar <Bram@vim.org>
+Copyright: 2001-2023 Bram Moolenaar <Bram@vim.org>
+           2023 The Vim Project
            2006 Benji Fisher <benji@member.ams.org>
            1999-2021 Charles E. Campbell, Jr. <drchip@campbellfamily.biz>
            2003 Fred Barnes
@@ -14,20 +15,22 @@ Copyright: 2001-2021 Bram Moolenaar <Bram@vim.org>
            2014 David Necas (Yeti)
            2009-2013 Steven Oliver
            2012 Hong Xu
-           2001-2016 MURAOKA Taro <koron.kaoriya@gmail.com>
+           2001-2023 MURAOKA Taro <koron.kaoriya@gmail.com>
            2001 Bohdan Vlasyuk <bohdan@vstu.edu.ua>
-           2003-2017 Ernest Adrogué <eadrogue@gmx.net>
+           2003-2022 Ernest Adrogué <eadrogue@gmx.net>
            2005,2006,2008,2010 Kevin Patrick Scannell <kscanne@gmail.com>
            1997 Olaf Seibert
-           1997 Heiko Erhardt
            2002 E. I. DuPont de Nemours and Company, Inc
            Pablo Ariel Kohan
            2017 Eugene Ciurana
            2017 Ken Takata
+           2019 Agilent Technologies, Inc.
 License: Vim
 
 Files: runtime/doc/*
-Copyright: 1988-2003 Bram Moolenaar <Bram@vim.org>
+Copyright:
+ 1988-2023 Bram Moolenaar <Bram@vim.org>
+ 2023 The Vim Project
 License: OPL-1+
 Comment: No license options are exercised.  See https://bugs.debian.org/384019
  for discussions confirming DFSG-ness of this license when no options are
@@ -53,18 +56,24 @@ License: BSD-3-clause
 Files:
  runtime/ftplugin/jsonc.vim
  runtime/ftplugin/julia.vim
- runtime/ftplugin/wast.vim
+ runtime/ftplugin/wat.vim
  runtime/indent/julia.vim
- runtime/indent/wast.vim
+ runtime/indent/wat.vim
+ runtime/syntax/bitbake.vim
  runtime/syntax/json.vim
  runtime/syntax/jsonc.vim
  runtime/syntax/julia.vim
- runtime/syntax/wast.vim
+ runtime/syntax/nix.vim
+ runtime/syntax/wat.vim
 Copyright:
- 2013, Jeroen Ruigrok van der Werven, Eli Parra
+ 2013 Jeroen Ruigrok van der Werven, Eli Parra
  2016 rhysd
  2021 Izhak Jakov
  2012-2016 Carlo Baldassi
+ 2004 Chris Larson
+ 2008 Ricardo Salveti
+ 2022 Daiderd Jordan
+ 2022 James Fleming
 License: Expat
 
 Files: runtime/syntax/tmux.vim
@@ -104,11 +113,7 @@ Files: src/xxd/*
 Copyright: 1990-1998 by Juergen Weigert (jnweiger@informatik.uni-erlangen.de)
 License: Expat or GPL-2
 
-Files: src/gui_at_fs.c
-Copyright: 1989 Software Research Associates, Inc., Tokyo, Japan
-License: SRA
-
-Files: src/gui_at_sb.* src/install-sh
+Files: src/install-sh
 Copyright: 1987, 1988, 1994 X Consortium
 License: X11
 
@@ -123,7 +128,7 @@ Copyright: 1993 Juergen Weigert (jnweiger@immd4.informatik.uni-erlangen.de)
 License: GPL-2+
 
 Files: src/iscygpty.*
-Copyright: 2015-2017 K.Takata
+Copyright: 2015-2023 K.Takata
 License: Expat or Vim
 
 Files: src/xpm/*
@@ -141,11 +146,14 @@ License: EDL-1
 Files:
  runtime/compiler/powershell.vim
  runtime/doc/ft_ps1.txt
+ runtime/ftplugin/kotlin.vim
  runtime/ftplugin/ps1.vim
  runtime/ftplugin/ps1xml.vim
  runtime/ftplugin/swift.vim
  runtime/ftplugin/swiftgyb.vim
+ runtime/indent/kotlin.vim
  runtime/indent/ps1.vim
+ runtime/syntax/kotlin.vim
  runtime/syntax/ps1.vim
  runtime/syntax/ps1xml.vim
  runtime/syntax/sil.vim
@@ -154,6 +162,7 @@ Files:
 Copyright:
  2014-2020 Apple Inc. and the Swift project authors
  2005-2021 Peter Provost
+ Alexander Udalov
 License: Apache
 
 Files: runtime/syntax/poke.vim
@@ -182,8 +191,8 @@ License: Vim
            maintainer will do with your changes and under what license they
            will be distributed is negotiable.  If there has been no negotiation
            then this license, or a later version, also applies to your changes.
-           The current maintainer is Bram Moolenaar <Bram@vim.org>.  If this
-           changes it will be announced in appropriate places (most likely
+           The current maintainers are listed here: https://github.com/orgs/vim/people.
+           If this changes it will be announced in appropriate places (most likely
            vim.sf.net, www.vim.org and/or comp.editors).  When it is completely
            impossible to contact the maintainer, the obligation to send him
            your changes ceases.  Once the maintainer has confirmed that he has
@@ -413,25 +422,6 @@ License: Expat
  ACTION OF CONTRACT, TORT OR OTHERWISE, ARISING FROM, OUT OF OR IN
  CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE
  SOFTWARE.
-
-License: SRA
- Permission to use, copy, modify, and distribute this software and its
- documentation for any purpose and without fee is hereby granted, provided
- that the above copyright notice appear in all copies and that both that
- copyright notice and this permission notice appear in supporting
- documentation, and that the name of Software Research Associates not be used
- in advertising or publicity pertaining to distribution of the software
- without specific, written prior permission.  Software Research Associates
- makes no representations about the suitability of this software for any
- purpose.  It is provided "as is" without express or implied warranty.
- .
- SOFTWARE RESEARCH ASSOCIATES DISCLAIMS ALL WARRANTIES WITH REGARD TO THIS
- SOFTWARE, INCLUDING ALL IMPLIED WARRANTIES OF MERCHANTABILITY AND FITNESS,
- IN NO EVENT SHALL SOFTWARE RESEARCH ASSOCIATES BE LIABLE FOR ANY SPECIAL,
- INDIRECT OR CONSEQUENTIAL DAMAGES OR ANY DAMAGES WHATSOEVER RESULTING FROM
- LOSS OF USE, DATA OR PROFITS, WHETHER IN AN ACTION OF CONTRACT, NEGLIGENCE
- OR OTHER TORTIOUS ACTION, ARISING OUT OF OR IN CONNECTION WITH THE USE OR
- PERFORMANCE OF THIS SOFTWARE.
 
 License: X11
  Permission is hereby granted, free of charge, to any person obtaining a copy

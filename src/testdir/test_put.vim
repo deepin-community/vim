@@ -1,6 +1,7 @@
 " Tests for put commands, e.g. ":put", "p", "gp", "P", "gP", etc.
 
 source check.vim
+source screendump.vim
 
 func Test_put_block()
   new
@@ -149,13 +150,134 @@ func Test_p_with_count_leaves_mark_at_end()
 endfunc
 
 func Test_very_large_count()
-  " FIXME: should actually check if sizeof(int) == sizeof(long)
-  CheckNotMSWindows
+  new
+  " total put-length (21474837 * 100) brings 32 bit int overflow
+  let @" = repeat('x', 100)
+  call assert_fails('norm 21474837p', 'E1240:')
+  bwipe!
+endfunc
+
+func Test_very_large_count_64bit()
+  if v:sizeoflong < 8
+    throw 'Skipped: only works with 64 bit long ints'
+  endif
 
   new
-  let @" = 'x'
-  call assert_fails('norm 44444444444444p', 'E1240:')
+  let @" = repeat('x', 100)
+  call assert_fails('norm 999999999p', 'E1240:')
   bwipe!
+endfunc
+
+func Test_very_large_count_block()
+  new
+  " total put-length (21474837 * 100) brings 32 bit int overflow
+  call setline(1, repeat('x', 100))
+  exe "norm \<C-V>99ly"
+  call assert_fails('norm 21474837p', 'E1240:')
+  bwipe!
+endfunc
+
+func Test_very_large_count_block_64bit()
+  if v:sizeoflong < 8
+    throw 'Skipped: only works with 64 bit long ints'
+  endif
+
+  new
+  call setline(1, repeat('x', 100))
+  exe "norm \<C-V>$y"
+  call assert_fails('norm 999999999p', 'E1240:')
+  bwipe!
+endfunc
+
+func Test_put_above_first_line()
+  new
+  let @" = 'text'
+  silent! normal 0o00
+  0put
+  call assert_equal('text', getline(1))
+  bwipe!
+endfunc
+
+func Test_multibyte_op_end_mark()
+  new
+  call setline(1, 'тест')
+  normal viwdp
+  call assert_equal([0, 1, 7, 0], getpos("'>"))
+  call assert_equal([0, 1, 7, 0], getpos("']"))
+
+  normal Vyp
+  call assert_equal([0, 1, v:maxcol, 0], getpos("'>"))
+  call assert_equal([0, 2, 7, 0], getpos("']"))
+  bwipe!
+endfunc
+
+" this was putting a mark before the start of a line
+func Test_put_empty_register()
+  new
+  norm yy
+  norm [Pi00ggv)s0
+  sil! norm [P
+  bwipe!
+endfunc
+
+" this was putting the end mark after the end of the line
+func Test_put_visual_mode()
+  edit! SomeNewBuffer
+  set selection=exclusive
+  exe "norm o\t"
+  m0
+  sil! norm pp
+
+  bwipe!
+  set selection&
+endfunc
+
+func Test_put_visual_block_mode()
+  enew
+  exe "norm 0R\<CR>\<C-C>V"
+  sil exe "norm \<C-V>c	\<MiddleDrag>"
+  set ve=all
+  sil norm vz=p
+
+  bwipe!
+  set ve=
+endfunc
+
+func Test_put_other_window()
+  CheckRunVimInTerminal
+
+  let lines =<< trim END
+      40vsplit
+      0put ='some text at the top'
+      put ='  one more text'
+      put ='  two more text'
+      put ='  three more text'
+      put ='  four more text'
+  END
+  call writefile(lines, 'Xtest_put_other', 'D')
+  let buf = RunVimInTerminal('-S Xtest_put_other', #{rows: 10})
+
+  call VerifyScreenDump(buf, 'Test_put_other_window_1', {})
+
+  call StopVimInTerminal(buf)
+endfunc
+
+func Test_put_in_last_displayed_line()
+  CheckRunVimInTerminal
+
+  let lines =<< trim END
+      vim9script
+      autocmd CursorMoved * eval line('w$')
+      @a = 'x'->repeat(&columns * 2 - 2)
+      range(&lines)->setline(1)
+      feedkeys('G"ap')
+  END
+  call writefile(lines, 'Xtest_put_last_line', 'D')
+  let buf = RunVimInTerminal('-S Xtest_put_last_line', #{rows: 10})
+
+  call VerifyScreenDump(buf, 'Test_put_in_last_displayed_line_1', {})
+
+  call StopVimInTerminal(buf)
 endfunc
 
 

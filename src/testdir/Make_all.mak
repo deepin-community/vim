@@ -7,8 +7,12 @@
 NO_PLUGINS = --noplugin --not-a-term
 NO_INITS = -U NONE $(NO_PLUGINS)
 
-# Tests for tiny and small builds.
+# File to delete when testing starts
+CLEANUP_FILES = test.log messages starttime
+
+# Tests for tiny build.
 SCRIPTS_TINY = \
+	test10 \
 	test20 \
 	test21 \
 	test22 \
@@ -19,6 +23,7 @@ SCRIPTS_TINY = \
 	test27
 
 SCRIPTS_TINY_OUT = \
+	test10.out \
 	test20.out \
 	test21.out \
 	test22.out \
@@ -32,22 +37,28 @@ SCRIPTS_TINY_OUT = \
 TEST_VIM9 = \
 	test_vim9_assign \
 	test_vim9_builtin \
+	test_vim9_class \
 	test_vim9_cmd \
 	test_vim9_disassemble \
 	test_vim9_expr \
 	test_vim9_fails \
 	test_vim9_func \
-	test_vim9_script
+	test_vim9_import \
+	test_vim9_script \
+	test_vim9_typealias
 
 TEST_VIM9_RES = \
 	test_vim9_assign.res \
 	test_vim9_builtin.res \
+	test_vim9_class.res \
 	test_vim9_cmd.res \
 	test_vim9_disassemble.res \
 	test_vim9_expr.res \
 	test_vim9_fails.res \
 	test_vim9_func.res \
-	test_vim9_script.res
+	test_vim9_import.res \
+	test_vim9_script.res \
+	test_vim9_typealias.res
 
 # Benchmark scripts.
 SCRIPTS_BENCH = test_bench_regexp.res
@@ -84,7 +95,11 @@ NEW_TESTS = \
 	test_cjk_linebreak \
 	test_clientserver \
 	test_close_count \
+	test_cmd_lists \
 	test_cmdline \
+	test_cmdmods \
+	test_cmdwin \
+	test_codestyle \
 	test_command_count \
 	test_comments \
 	test_comparators \
@@ -92,6 +107,7 @@ NEW_TESTS = \
 	test_conceal \
 	test_const \
 	test_cpoptions \
+	test_crash \
 	test_crypt \
 	test_cscope \
 	test_cursor_func \
@@ -122,7 +138,6 @@ NEW_TESTS = \
 	test_expand_func \
 	test_expr \
 	test_expr_utf8 \
-	test_feedkeys \
 	test_file_perm \
 	test_file_size \
 	test_filechanged \
@@ -138,6 +153,7 @@ NEW_TESTS = \
 	test_fnameescape \
 	test_fnamemodify \
 	test_fold \
+	test_format \
 	test_functions \
 	test_function_lists \
 	test_ga \
@@ -161,6 +177,7 @@ NEW_TESTS = \
 	test_increment \
 	test_increment_dbcs \
 	test_indent \
+	test_input \
 	test_ins_complete \
 	test_ins_complete_no_halt \
 	test_interrupt \
@@ -168,13 +185,12 @@ NEW_TESTS = \
 	test_join \
 	test_json \
 	test_jumplist \
-	test_jumps \
 	test_lambda \
 	test_langmap \
 	test_largefile \
 	test_let \
 	test_lineending \
-	test_lispwords \
+	test_lispindent \
 	test_listchars \
 	test_listdict \
 	test_listener \
@@ -183,13 +199,14 @@ NEW_TESTS = \
 	test_lua \
 	test_makeencoding \
 	test_man \
-	test_maparg \
+	test_map_functions \
 	test_mapping \
 	test_marks \
 	test_match \
 	test_matchadd_conceal \
 	test_matchadd_conceal_utf8 \
 	test_matchfuzzy \
+	test_matchparen \
 	test_memory_usage \
 	test_menu \
 	test_messages \
@@ -199,6 +216,7 @@ NEW_TESTS = \
 	test_modeless \
 	test_modeline \
 	test_move \
+	test_mswin_event \
 	test_mzscheme \
 	test_nested_function \
 	test_netbeans \
@@ -276,6 +294,7 @@ NEW_TESTS = \
 	test_taglist \
 	test_tcl \
 	test_termcodes \
+	test_termdebug \
 	test_termencoding \
 	test_terminal \
 	test_terminal2 \
@@ -343,13 +362,18 @@ NEW_TESTS_RES = \
 	test_cjk_linebreak.res \
 	test_clientserver.res \
 	test_close_count.res \
+	test_cmd_lists.res \
 	test_cmdline.res \
+	test_cmdmods.res \
+	test_cmdwin.res \
+	test_codestyle.res \
 	test_command_count.res \
 	test_comments.res \
 	test_comparators.res \
 	test_conceal.res \
 	test_const.res \
 	test_cpoptions.res \
+	test_crash.res \
 	test_crypt.res \
 	test_cscope.res \
 	test_cursor_func.res \
@@ -405,6 +429,7 @@ NEW_TESTS_RES = \
 	test_increment.res \
 	test_increment_dbcs.res \
 	test_indent.res \
+	test_input.res \
 	test_ins_complete.res \
 	test_ins_complete_no_halt.res \
 	test_interrupt.res \
@@ -416,6 +441,7 @@ NEW_TESTS_RES = \
 	test_langmap.res \
 	test_let.res \
 	test_lineending.res \
+	test_lispindent.res \
 	test_listchars.res \
 	test_listdict.res \
 	test_listener.res \
@@ -424,7 +450,7 @@ NEW_TESTS_RES = \
 	test_lua.res \
 	test_makeencoding.res \
 	test_man.res \
-	test_maparg.res \
+	test_map_functions.res \
 	test_mapping.res \
 	test_marks.res \
 	test_match.res \
@@ -438,6 +464,7 @@ NEW_TESTS_RES = \
 	test_mksession.res \
 	test_modeless.res \
 	test_modeline.res \
+	test_mswin_event.res \
 	test_mzscheme.res \
 	test_nested_function.res \
 	test_netbeans.res \
@@ -470,6 +497,7 @@ NEW_TESTS_RES = \
 	test_retab.res \
 	test_ruby.res \
 	test_scriptnames.res \
+	test_scroll_opt.res \
 	test_scrollbind.res \
 	test_search.res \
 	test_search_stat.res \
@@ -501,6 +529,7 @@ NEW_TESTS_RES = \
 	test_taglist.res \
 	test_tcl.res \
 	test_termcodes.res \
+	test_termdebug.res \
 	test_termencoding.res \
 	test_terminal.res \
 	test_terminal2.res \

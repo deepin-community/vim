@@ -150,6 +150,22 @@ function Test_tabpage()
   tabonly!
 endfunc
 
+func Test_tabpage_drop()
+  edit f1
+  tab split f2
+  tab split f3
+  normal! gt
+  call assert_equal(1, tabpagenr())
+
+  tab drop f3
+  call assert_equal(3, tabpagenr())
+  call assert_equal(1, tabpagenr('#'))
+  bwipe!
+  bwipe!
+  bwipe!
+  call assert_equal(1, tabpagenr('$'))
+endfunc
+
 " Test autocommands
 function Test_tabpage_with_autocmd()
   command -nargs=1 -bar C :call add(s:li, '=== ' . <q-args> . ' ===')|<args>
@@ -606,19 +622,16 @@ func Test_tabpage_cmdheight()
         \ 'echo "hello\nthere"',
         \ 'tabnext',
         \ 'redraw',
-	\ ], 'XTest_tabpage_cmdheight')
+	\ ], 'XTest_tabpage_cmdheight', 'D')
   " Check that cursor line is concealed
   let buf = RunVimInTerminal('-S XTest_tabpage_cmdheight', {'statusoff': 3})
   call VerifyScreenDump(buf, 'Test_tabpage_cmdheight', {})
 
   call StopVimInTerminal(buf)
-  call delete('XTest_tabpage_cmdheight')
 endfunc
 
 " Test for closing the tab page from a command window
 func Test_tabpage_close_cmdwin()
-  CheckFeature cmdwin
-
   tabnew
   call feedkeys("q/:tabclose\<CR>\<Esc>", 'xt')
   call assert_equal(2, tabpagenr('$'))
@@ -768,14 +781,14 @@ endfunc
 func Test_tabpage_close_on_switch()
   tabnew
   tabnew
-  edit Xfile
+  edit Xtabfile
   augroup T2
     au!
-    au BufLeave Xfile 1tabclose
+    au BufLeave Xtabfile 1tabclose
   augroup END
   tabfirst
   call assert_equal(2, tabpagenr())
-  call assert_equal('Xfile', @%)
+  call assert_equal('Xtabfile', @%)
   augroup T2
     au!
   augroup END
@@ -850,6 +863,63 @@ func Test_lastused_tabpage()
   call assert_equal(wnum, win_getid())
 
   tabonly!
+endfunc
+
+" Test for tabpage allocation failure
+func Test_tabpage_alloc_failure()
+  call test_alloc_fail(GetAllocId('newtabpage_tvars'), 0, 0)
+  call assert_fails('tabnew', 'E342:')
+
+  call test_alloc_fail(GetAllocId('newtabpage_tvars'), 0, 0)
+  edit Xfile1
+  call assert_fails('tabedit Xfile2', 'E342:')
+  call assert_equal(1, winnr('$'))
+  call assert_equal(1, tabpagenr('$'))
+  call assert_equal('Xfile1', @%)
+
+  new
+  call test_alloc_fail(GetAllocId('newtabpage_tvars'), 0, 0)
+  call assert_fails('wincmd T', 'E342:')
+  bw!
+
+  call test_alloc_fail(GetAllocId('newtabpage_tvars'), 0, 0)
+  call assert_fails('tab split', 'E342:')
+  call assert_equal(2, winnr('$'))
+  call assert_equal(1, tabpagenr('$'))
+endfunc
+
+" this was giving ml_get errors
+func Test_tabpage_last_line()
+  enew
+  call setline(1, repeat(['a'], &lines + 5))
+  $
+  tabnew
+  call setline(1, repeat(['b'], &lines + 20))
+  $
+  tabNext
+  call assert_equal('a', getline('.'))
+
+  bwipe!
+  bwipe!
+endfunc
+
+" this was causing an endless loop
+func Test_tabpage_drop_tabmove()
+  augroup TestTabpageTabmove
+    au!
+    autocmd! TabEnter * :if tabpagenr() > 1 | tabmove - | endif
+  augroup end
+  $tab drop XTab_99.log
+  $tab drop XTab_98.log
+  $tab drop XTab_97.log
+
+  autocmd! TestTabpageTabmove
+  augroup! TestTabpageTabmove
+
+  " clean up
+  bwipe!
+  bwipe!
+  bwipe!
 endfunc
 
 " vim: shiftwidth=2 sts=2 expandtab
