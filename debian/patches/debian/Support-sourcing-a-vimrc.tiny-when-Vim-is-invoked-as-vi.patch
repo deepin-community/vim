@@ -17,7 +17,7 @@ Signed-off-by: James Vega <jamessan@debian.org>
  3 files changed, 28 insertions(+), 1 deletion(-)
 
 diff --git a/src/main.c b/src/main.c
-index 770726f..d91a5e4 100644
+index e5faaa7..ff500d7 100644
 --- a/src/main.c
 +++ b/src/main.c
 @@ -1956,6 +1956,10 @@ parse_command_name(mparm_T *parmp)
@@ -45,7 +45,7 @@ index 770726f..d91a5e4 100644
  #endif
  #ifdef MACOS_X
  	(void)do_source((char_u *)"$VIMRUNTIME/macmap.vim", FALSE,
-@@ -3290,13 +3299,25 @@ source_startup_scripts(mparm_T *parmp)
+@@ -3294,13 +3303,25 @@ source_startup_scripts(mparm_T *parmp)
  #ifdef USR_EXRC_FILE2
  		&& do_source((char_u *)USR_EXRC_FILE2, FALSE,
  						       DOSO_NONE, NULL) == FAIL
@@ -72,7 +72,7 @@ index 770726f..d91a5e4 100644
  	}
  
 diff --git a/src/os_unix.h b/src/os_unix.h
-index 4c77e15..fa1205f 100644
+index 99184ab..6db866e 100644
 --- a/src/os_unix.h
 +++ b/src/os_unix.h
 @@ -207,6 +207,9 @@ typedef struct dsc$descriptor   DESC;
@@ -86,10 +86,10 @@ index 4c77e15..fa1205f 100644
  # define SYS_VIMRC_FILE "$VIM/vimrc"
  #endif
 diff --git a/src/structs.h b/src/structs.h
-index 4e081b8..3655543 100644
+index 7e21f0f..8ed1481 100644
 --- a/src/structs.h
 +++ b/src/structs.h
-@@ -4556,6 +4556,9 @@ typedef struct
+@@ -4603,6 +4603,9 @@ typedef struct
  #ifdef FEAT_DIFF
      int		diff_mode;		// start with 'diff' set
  #endif

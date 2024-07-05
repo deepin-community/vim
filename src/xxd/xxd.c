@@ -58,6 +58,11 @@
  * 20.06.2022  Permit setting the variable names used by -i by David Gow
  * 31.08.2023  -R never/auto/always prints colored output
  * 06.10.2023  enable -r -b to reverse bit dumps
+ * 12.01.2024  disable auto-conversion for z/OS (MVS)
+ * 17.01.2024  use size_t instead of usigned int for code-generation (-i), #13876
+ * 25.01.2024  revert the previous patch (size_t instead of unsigned int)
+ * 10.02.2024  fix buffer-overflow when writing color output to buffer, #14003
+ * 10.05.2024  fix another buffer-overflow when writing colored output to buffer, #14738
  *
  * (c) 1990-1998 by Juergen Weigert (jnweiger@gmail.com)
  *
@@ -138,7 +143,7 @@ extern void perror __P((char *));
 # endif
 #endif
 
-char version[] = "xxd 2023-10-25 by Juergen Weigert et al.";
+char version[] = "xxd 2024-05-10 by Juergen Weigert et al.";
 #ifdef WIN32
 char osver[] = " (Win32)";
 #else
@@ -197,7 +202,20 @@ char osver[] = "";
 
 #define TRY_SEEK	/* attempt to use lseek, or skip forward by reading */
 #define COLS 256	/* change here, if you ever need more columns */
-#define LLEN ((2*(int)sizeof(unsigned long)) + 4 + (9*COLS-1) + COLS + 2)
+
+/*
+ * LLEN is the maximum length of a line; other than the visible characters
+ * we need to consider also the escape color sequence prologue/epilogue ,
+ * (11 bytes for each character).
+ */
+#define LLEN \
+    (39            /* addr: ⌈log10(ULONG_MAX)⌉ if "-d" flag given. We assume ULONG_MAX = 2**128 */ \
+    + 2            /* ": " */ \
+    + 13 * COLS    /* hex dump with colors */ \
+    + (COLS - 1)   /* whitespace between groups if "-g1" option given and "-c" maxed out */ \
+    + 2            /* whitespace */ \
+    + 12 * COLS    /* ASCII dump with colors */ \
+    + 2)           /* "\n\0" */
 
 char hexxa[] = "0123456789abcdef0123456789ABCDEF", *hexx = hexxa;
 
@@ -587,7 +605,7 @@ begin_coloring_char (char *l, int *c, int e, int ebcdic)
     }
   else  /* ASCII */
     {
-      #ifdef __MVS__
+      #if defined(__MVS__) && __CHARSET_LIB == 0
       if (e >= 64)
         l[(*c)++] = COLOR_GREEN;
       #else
@@ -905,6 +923,10 @@ main(int argc, char *argv[])
 	}
       rewind(fpo);
     }
+#ifdef __MVS__
+  // Disable auto-conversion on input file descriptors
+  __disableautocvt(fileno(fp));
+#endif
 
   if (revert)
     switch (hextype)
@@ -1066,7 +1088,7 @@ main(int argc, char *argv[])
 
           COLOR_PROLOGUE
           begin_coloring_char(l,&c,e,ebcdic);
-#ifdef __MVS__
+#if defined(__MVS__) && __CHARSET_LIB == 0
           if (e >= 64)
             l[c++] = e;
           else
@@ -1094,7 +1116,7 @@ main(int argc, char *argv[])
 
           c += addrlen + 3 + p;
           l[c++] =
-#ifdef __MVS__
+#if defined(__MVS__) && __CHARSET_LIB == 0
               (e >= 64)
 #else
               (e > 31 && e < 127)

@@ -323,7 +323,7 @@ sort_compare(const void *s1, const void *s2)
     if (sort_nr)
     {
 	if (l1.st_u.num.is_number != l2.st_u.num.is_number)
-	    result = l1.st_u.num.is_number - l2.st_u.num.is_number;
+	    result = l1.st_u.num.is_number > l2.st_u.num.is_number ? 1 : -1;
 	else
 	    result = l1.st_u.num.value == l2.st_u.num.value ? 0
 			     : l1.st_u.num.value > l2.st_u.num.value ? 1 : -1;
@@ -489,7 +489,7 @@ ex_sort(exarg_T *eap)
     for (lnum = eap->line1; lnum <= eap->line2; ++lnum)
     {
 	s = ml_get(lnum);
-	len = (int)STRLEN(s);
+	len = ml_get_len(lnum);
 	if (maxlen < len)
 	    maxlen = len;
 
@@ -691,7 +691,7 @@ do_move(linenr_T line1, linenr_T line2, linenr_T dest)
 	return FAIL;
     for (extra = 0, l = line1; l <= line2; l++)
     {
-	str = vim_strsave(ml_get(l + extra));
+	str = vim_strnsave(ml_get(l + extra), ml_get_len(l + extra));
 	if (str != NULL)
 	{
 	    ml_append(dest + l - line1, str, (colnr_T)0, FALSE);
@@ -824,9 +824,9 @@ ex_copy(linenr_T line1, linenr_T line2, linenr_T n)
     curwin->w_cursor.lnum = n;
     while (line1 <= line2)
     {
-	// need to use vim_strsave() because the line will be unlocked within
+	// need to make a copy because the line will be unlocked within
 	// ml_append()
-	p = vim_strsave(ml_get(line1));
+	p = vim_strnsave(ml_get(line1), ml_get_len(line1));
 	if (p != NULL)
 	{
 	    ml_append(curwin->w_cursor.lnum, p, (colnr_T)0, FALSE);
@@ -2428,6 +2428,9 @@ getfile(
     int		retval;
     char_u	*free_me = NULL;
 
+    if (!check_can_set_curbuf_forceit(forceit))
+	return GETFILE_ERROR;
+
     if (text_locked())
 	return GETFILE_ERROR;
     if (curbuf_locked())
@@ -2782,9 +2785,16 @@ do_ecmd(
 	{
 	    bufref_T	save_au_new_curbuf;
 	    int		save_cmdwin_type = cmdwin_type;
+	    win_T	*save_cmdwin_win = cmdwin_win;
+
+	    // Should only be possible to get here if the cmdwin is closed, or
+	    // if it's opening and its buffer hasn't been set yet (the new
+	    // buffer is for it).
+	    assert(cmdwin_buf == NULL);
 
 	    // BufLeave applies to the old buffer.
 	    cmdwin_type = 0;
+	    cmdwin_win = NULL;
 
 	    /*
 	     * Be careful: The autocommands may delete any buffer and change
@@ -2801,7 +2811,10 @@ do_ecmd(
 	    save_au_new_curbuf = au_new_curbuf;
 	    set_bufref(&au_new_curbuf, buf);
 	    apply_autocmds(EVENT_BUFLEAVE, NULL, NULL, FALSE, curbuf);
+
 	    cmdwin_type = save_cmdwin_type;
+	    cmdwin_win = save_cmdwin_win;
+
 	    if (!bufref_valid(&au_new_curbuf))
 	    {
 		// new buffer has been deleted
@@ -2948,7 +2961,7 @@ do_ecmd(
     // Since we are starting to edit a file, consider the filetype to be
     // unset.  Helps for when an autocommand changes files and expects syntax
     // highlighting to work in the other file.
-    did_filetype = FALSE;
+    curbuf->b_did_filetype = FALSE;
 
 /*
  * other_file	oldbuf
@@ -3737,6 +3750,7 @@ ex_substitute(exarg_T *eap)
     int		save_do_all;		// remember user specified 'g' flag
     int		save_do_ask;		// remember user specified 'c' flag
     char_u	*pat = NULL, *sub = NULL;	// init for GCC
+    size_t	patlen = 0;
     int		delimiter;
     int		sublen;
     int		got_quit = FALSE;
@@ -3810,6 +3824,7 @@ ex_substitute(exarg_T *eap)
 	    if (*cmd != '&')
 		which_pat = RE_SEARCH;	    // use last '/' pattern
 	    pat = (char_u *)"";		    // empty search pattern
+	    patlen = 0;
 	    delimiter = *cmd++;		    // remember delimiter character
 	}
 	else		// find the end of the regexp
@@ -3817,6 +3832,7 @@ ex_substitute(exarg_T *eap)
 	    which_pat = RE_LAST;	    // use last used regexp
 	    delimiter = *cmd++;		    // remember delimiter character
 	    pat = cmd;			    // remember start of search pat
+	    patlen = STRLEN(pat);
 	    cmd = skip_regexp_ex(cmd, delimiter, magic_isset(),
 							&eap->arg, NULL, NULL);
 	    if (cmd[0] == delimiter)	    // end delimiter found
@@ -3870,6 +3886,7 @@ ex_substitute(exarg_T *eap)
 	    return;
 	}
 	pat = NULL;		// search_regcomp() will use previous pattern
+	patlen = 0;
 	sub = vim_strsave(old_sub);
 
 	// Vi compatibility quirk: repeating with ":s" keeps the cursor in the
@@ -3916,9 +3933,9 @@ ex_substitute(exarg_T *eap)
 	}
 
 	if ((cmdmod.cmod_flags & CMOD_KEEPPATTERNS) == 0)
-	    save_re_pat(RE_SUBST, pat, magic_isset());
+	    save_re_pat(RE_SUBST, pat, patlen, magic_isset());
 	// put pattern in history
-	add_to_history(HIST_SEARCH, pat, TRUE, NUL);
+	add_to_history(HIST_SEARCH, pat, patlen, TRUE, NUL);
 	vim_free(sub);
 
 	return;
@@ -4053,7 +4070,7 @@ ex_substitute(exarg_T *eap)
 	return;
     }
 
-    if (search_regcomp(pat, NULL, RE_SUBST, which_pat, SEARCH_HIS, &regmatch) == FAIL)
+    if (search_regcomp(pat, patlen, NULL, RE_SUBST, which_pat, SEARCH_HIS, &regmatch) == FAIL)
     {
 	if (subflags.do_error)
 	    emsg(_(e_invalid_command));
@@ -4212,7 +4229,8 @@ ex_substitute(exarg_T *eap)
 
 		if (sub_firstline == NULL)
 		{
-		    sub_firstline = vim_strsave(ml_get(sub_firstlnum));
+		    sub_firstline = vim_strnsave(ml_get(sub_firstlnum),
+						    ml_get_len(sub_firstlnum));
 		    if (sub_firstline == NULL)
 		    {
 			vim_free(new_start);
@@ -4366,7 +4384,8 @@ ex_substitute(exarg_T *eap)
 				// really update the line, it would change
 				// what matches.  Temporarily replace the line
 				// and change it back afterwards.
-				orig_line = vim_strsave(ml_get(lnum));
+				orig_line = vim_strnsave(ml_get(lnum),
+							     ml_get_len(lnum));
 				if (orig_line != NULL)
 				{
 				    char_u *new_line = concat_str(new_start,
@@ -4712,7 +4731,8 @@ ex_substitute(exarg_T *eap)
 		{
 		    sub_firstlnum += nmatch - 1;
 		    vim_free(sub_firstline);
-		    sub_firstline = vim_strsave(ml_get(sub_firstlnum));
+		    sub_firstline = vim_strnsave(ml_get(sub_firstlnum),
+						    ml_get_len(sub_firstlnum));
 		    // When going beyond the last line, stop substituting.
 		    if (sub_firstlnum <= line2)
 			do_again = TRUE;
@@ -5088,6 +5108,7 @@ ex_global(exarg_T *eap)
 
     char_u	delim;		// delimiter, normally '/'
     char_u	*pat;
+    size_t	patlen;
     char_u	*used_pat;
     regmmatch_T	regmatch;
     int		match;
@@ -5134,6 +5155,7 @@ ex_global(exarg_T *eap)
 	    which_pat = RE_SEARCH;	// use previous search pattern
 	++cmd;
 	pat = (char_u *)"";
+	patlen = 0;
     }
     else if (*cmd == NUL)
     {
@@ -5149,12 +5171,13 @@ ex_global(exarg_T *eap)
 	delim = *cmd;		// get the delimiter
 	++cmd;			// skip delimiter if there is one
 	pat = cmd;		// remember start of pattern
+	patlen = STRLEN(pat);
 	cmd = skip_regexp_ex(cmd, delim, magic_isset(), &eap->arg, NULL, NULL);
 	if (cmd[0] == delim)		    // end delimiter found
 	    *cmd++ = NUL;		    // replace it with a NUL
     }
 
-    if (search_regcomp(pat, &used_pat, RE_BOTH, which_pat, SEARCH_HIS,
+    if (search_regcomp(pat, patlen, &used_pat, RE_BOTH, which_pat, SEARCH_HIS,
 							    &regmatch) == FAIL)
     {
 	emsg(_(e_invalid_command));
@@ -5425,8 +5448,7 @@ ex_smile(exarg_T *eap UNUSED)
 
 /*
  * ":drop"
- * Opens the first argument in a window.  When there are two or more arguments
- * the argument list is redefined.
+ * Opens the first argument in a window, and the argument list is redefined.
  */
     void
 ex_drop(exarg_T *eap)
@@ -5463,6 +5485,8 @@ ex_drop(exarg_T *eap)
 	// edited in a window yet.  It's like ":tab all" but without closing
 	// windows or tabs.
 	ex_all(eap);
+	cmdmod.cmod_tab = 0;
+	ex_rewind(eap);
 	return;
     }
 
@@ -5486,6 +5510,8 @@ ex_drop(exarg_T *eap)
 		buf_check_timestamp(curbuf, FALSE);
 		curbuf->b_p_ar = save_ar;
 	    }
+	    if (curbuf->b_ml.ml_flags & ML_EMPTY)
+		ex_rewind(eap);
 	    return;
 	}
     }
@@ -5603,6 +5629,9 @@ ex_oldfiles(exarg_T *eap UNUSED)
     listitem_T	*li;
     int		nr = 0;
     char_u	*fname;
+    // for a single filtered match, remember the number
+    // so we can jump directly to it without prompting
+    int		matches = -1;
 
     if (l == NULL)
     {
@@ -5618,6 +5647,10 @@ ex_oldfiles(exarg_T *eap UNUSED)
 	fname = tv_get_string(&li->li_tv);
 	if (!message_filtered(fname))
 	{
+	    if (matches < 0)
+		matches = nr;
+	    else
+		matches = 0;
 	    msg_outnum((long)nr);
 	    msg_puts(": ");
 	    msg_outtrans(fname);
@@ -5635,7 +5668,15 @@ ex_oldfiles(exarg_T *eap UNUSED)
     if (cmdmod.cmod_flags & CMOD_BROWSE)
     {
 	quit_more = FALSE;
-	nr = prompt_for_number(FALSE);
+	// we only need to prompt if there is more than 1 match
+	if (matches > 0)
+	{
+	    nr = matches;
+	    // msg_putchar above sets needs_wait_return
+	    need_wait_return = FALSE;
+	}
+	else
+	    nr = prompt_for_number(FALSE);
 	msg_starthere();
 	if (nr > 0)
 	{

@@ -1,7 +1,7 @@
 " These commands create the option window.
 "
 " Maintainer:	The Vim Project <https://github.com/vim/vim>
-" Last Change:	2023 Aug 31
+" Last Change:	2024 Jun 05
 " Former Maintainer:	Bram Moolenaar <Bram@vim.org>
 
 " If there already is an option window, jump to that one.
@@ -482,6 +482,7 @@ if has("statusline")
   call <SID>AddOption("statusline", gettext("alternate format to be used for a status line"))
   call <SID>OptionG("stl", &stl)
 endif
+call append("$", "\t" .. s:local_to_window)
 call <SID>AddOption("equalalways", gettext("make all windows the same size when adding/removing windows"))
 call <SID>BinOptionG("ea", &ea)
 call <SID>AddOption("eadirection", gettext("in which direction 'equalalways' works: \"ver\", \"hor\" or \"both\""))
@@ -490,6 +491,8 @@ call <SID>AddOption("winheight", gettext("minimal number of lines used for the c
 call append("$", " \tset wh=" . &wh)
 call <SID>AddOption("winminheight", gettext("minimal number of lines used for any window"))
 call append("$", " \tset wmh=" . &wmh)
+call <SID>AddOption("winfixbuf", gettext("keep window focused on a single buffer"))
+call <SID>OptionG("wfb", &wfb)
 call <SID>AddOption("winfixheight", gettext("keep the height of the window"))
 call append("$", "\t" .. s:local_to_window)
 call <SID>BinOptionL("wfh")
@@ -843,7 +846,7 @@ if has("insert_expand")
   call append("$", "\t" .. s:local_to_buffer)
   call <SID>OptionL("cpt")
   call <SID>AddOption("completeopt", gettext("whether to use a popup menu for Insert mode completion"))
-  call <SID>OptionG("cot", &cot)
+  call <SID>OptionL("cot")
   if exists("+completepopup")
     call <SID>AddOption("completepopup", gettext("options for the Insert mode completion info popup"))
     call <SID>OptionG("cpp", &cpp)

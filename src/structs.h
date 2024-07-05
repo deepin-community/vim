@@ -246,6 +246,8 @@ typedef struct
     long	wo_nuw;
 # define w_p_nuw w_onebuf_opt.wo_nuw	// 'numberwidth'
 #endif
+    int wo_wfb;
+#define w_p_wfb w_onebuf_opt.wo_wfb	// 'winfixbuf'
     int		wo_wfh;
 # define w_p_wfh w_onebuf_opt.wo_wfh	// 'winfixheight'
     int		wo_wfw;
@@ -800,7 +802,8 @@ typedef struct memline
 #define ML_ALLOCATED	0x10	// ml_line_ptr is an allocated copy
     int		ml_flags;
 
-    colnr_T	ml_line_len;	// length of the cached line, including NUL
+    colnr_T	ml_line_len;	// length of the cached line + NUL + text properties
+    colnr_T	ml_line_textlen;// length of the cached line + NUL, 0 if not known yet
     linenr_T	ml_line_lnum;	// line number of cached line, 0 if not valid
     char_u	*ml_line_ptr;	// pointer to cached line
 
@@ -1186,6 +1189,7 @@ typedef struct attr_entry
 	    short_u	    fg_color;	// foreground color number
 	    short_u	    bg_color;	// background color number
 	    short_u	    ul_color;	// underline color number
+	    short_u	    font;	// font number
 # ifdef FEAT_TERMGUICOLORS
 	    guicolor_T	    fg_rgb;	// foreground color RGB
 	    guicolor_T	    bg_rgb;	// background color RGB
@@ -1528,6 +1532,17 @@ typedef enum {
 #define OCMFLAG_CONST		0x04	// "const" object/class member
 
 /*
+ * Object methods called by builtin functions (e.g. string(), empty(), etc.)
+ */
+typedef enum {
+    CLASS_BUILTIN_INVALID,
+    CLASS_BUILTIN_STRING,
+    CLASS_BUILTIN_EMPTY,
+    CLASS_BUILTIN_LEN,
+    CLASS_BUILTIN_MAX
+} class_builtin_T;
+
+/*
  * Entry for an object or class member variable.
  */
 typedef struct {
@@ -1547,9 +1562,10 @@ struct itf2class_S {
     // array with ints follows
 };
 
-#define CLASS_INTERFACE	    1
-#define CLASS_EXTENDED	    2	    // another class extends this one
-#define CLASS_ABSTRACT	    4	    // abstract class
+#define CLASS_INTERFACE	    0x1
+#define CLASS_EXTENDED	    0x2	    // another class extends this one
+#define CLASS_ABSTRACT	    0x4	    // abstract class
+#define CLASS_ENUM	    0x8	    // enum
 
 // "class_T": used for v_class of typval of VAR_CLASS
 // Also used for an interface (class_flags has CLASS_INTERFACE).
@@ -1590,10 +1606,16 @@ struct class_S
     int		class_obj_method_count_child;	    // count without "extends"
     ufunc_T	**class_obj_methods;	// allocated
 
+					// index of builtin methods
+    int		class_builtin_methods[CLASS_BUILTIN_MAX];
+
     garray_T	class_type_list;	// used for type pointers
     type_T	class_type;		// type used for the class
     type_T	class_object_type;	// same as class_type but VAR_OBJECT
 };
+
+#define IS_INTERFACE(cl)	((cl)->class_flags & CLASS_INTERFACE)
+#define IS_ENUM(cl)		((cl)->class_flags & CLASS_ENUM)
 
 // Used for v_object of typval of VAR_OBJECT.
 // The member variables follow in an array of typval_T.
@@ -2109,6 +2131,7 @@ typedef struct
     int		sn_state;	// SN_STATE_ values
     char_u	*sn_save_cpo;	// 'cpo' value when :vim9script found
     char	sn_is_vimrc;	// .vimrc file, do not restore 'cpo'
+    char	sn_syml_checked;// flag: this has been checked for sym link
 
     // for a Vim9 script under "rtp/autoload/" this is "dir#scriptname#"
     char_u	*sn_autoload_prefix;
@@ -3111,6 +3134,19 @@ struct file_buffer
     int		b_marks_read;	// Have we read viminfo marks yet?
 #endif
 
+    int		b_modified_was_set;	// did ":set modified"
+    int		b_did_filetype;		// FileType event found
+    int		b_keep_filetype;	// value for did_filetype when starting
+					// to execute autocommands
+
+    // Set by the apply_autocmds_group function if the given event is equal to
+    // EVENT_FILETYPE. Used by the readfile function in order to determine if
+    // EVENT_BUFREADPOST triggered the EVENT_FILETYPE.
+    //
+    // Relying on this value requires one to reset it prior calling
+    // apply_autocmds_group().
+    int		b_au_did_filetype;
+
     /*
      * The following only used in undo.c.
      */
@@ -3186,6 +3222,8 @@ struct file_buffer
 #ifdef FEAT_FOLDING
     char_u	*b_p_cms;	// 'commentstring'
 #endif
+    char_u	*b_p_cot;	// 'completeopt' local value
+    unsigned	b_cot_flags;	// flags for 'completeopt'
     char_u	*b_p_cpt;	// 'complete'
 #ifdef BACKSLASH_IN_FILENAME
     char_u	*b_p_csl;	// 'completeslash'
@@ -4333,7 +4371,7 @@ struct VimMenu
     HMENU	submenu_id;	    // If this is submenu, add children here
     HWND	tearoff_handle;	    // hWnd of tearoff if created
 #endif
-#if FEAT_GUI_HAIKU
+#ifdef FEAT_GUI_HAIKU
     BMenuItem  *id;		    // Id of menu item
     BMenu  *submenu_id;		    // If this is submenu, add children here
 # ifdef FEAT_TOOLBAR
@@ -4357,15 +4395,18 @@ typedef int vimmenu_T;
  */
 typedef struct
 {
-    buf_T	*save_curbuf;	    // saved curbuf
     int		use_aucmd_win_idx;  // index in aucmd_win[] if >= 0
     int		save_curwin_id;	    // ID of saved curwin
     int		new_curwin_id;	    // ID of new curwin
     int		save_prevwin_id;    // ID of saved prevwin
     bufref_T	new_curbuf;	    // new curbuf
+    char_u	*tp_localdir;	    // saved value of tp_localdir
     char_u	*globaldir;	    // saved value of globaldir
     int		save_VIsual_active; // saved VIsual_active
     int		save_State;	    // saved State
+#ifdef FEAT_JOB_CHANNEL
+    int		save_prompt_insert; // saved b_prompt_insert
+#endif
 } aco_save_T;
 
 /*
@@ -4429,6 +4470,8 @@ typedef struct
     char_u	*pum_kind;	// extra kind text (may be truncated)
     char_u	*pum_extra;	// extra menu text (may be truncated)
     char_u	*pum_info;	// extra info
+    int		pum_score;	// fuzzy match score
+    int		pum_idx;	// index of item before sorting by score
 } pumitem_T;
 
 /*
@@ -4756,6 +4799,7 @@ typedef struct soffset
 typedef struct spat
 {
     char_u	    *pat;	// the pattern (in allocated memory) or NULL
+    size_t	    patlen;	// the length of the pattern (0 if pat is NULL)
     int		    magic;	// magicness of the pattern
     int		    no_scs;	// no smartcase for this pattern
     soffset_T	    off;
@@ -4879,11 +4923,12 @@ typedef struct {
     hashtab_T	sve_hashtab;
 } save_v_event_T;
 
-// Enum used by filter(), map() and mapnew()
+// Enum used by filter(), map(), mapnew() and foreach()
 typedef enum {
     FILTERMAP_FILTER,
     FILTERMAP_MAP,
-    FILTERMAP_MAPNEW
+    FILTERMAP_MAPNEW,
+    FILTERMAP_FOREACH
 } filtermap_T;
 
 // Structure used by switch_win() to pass values to restore_win()
@@ -4907,6 +4952,10 @@ typedef struct {
     win_T	*cts_win;
     char_u	*cts_line;		// start of the line
     char_u	*cts_ptr;		// current position in line
+#ifdef FEAT_LINEBREAK
+    int		cts_bri_size;		// cached size of 'breakindent', or -1
+					// if not computed yet
+#endif
 #ifdef FEAT_PROP_POPUP
     int		cts_text_prop_count;	// number of text props; when zero
 					// cts_text_props is not used
@@ -5018,3 +5067,18 @@ typedef struct {
     linenr_T	spv_capcol_lnum;    // line number for "cap_col"
 #endif
 } spellvars_T;
+
+// Return the length of a string literal
+#define STRLEN_LITERAL(s) (sizeof(s) - 1)
+
+// Store a key/value pair
+typedef struct
+{
+    int	    key;        // the key
+    char    *value;     // the value string
+    size_t  length;     // length of the value string
+} keyvalue_T;
+
+#define KEYVALUE_ENTRY(k, v) \
+    {(k), (v), STRLEN_LITERAL(v)}
+

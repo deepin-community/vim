@@ -538,9 +538,16 @@ term_start(
 	    split_ea.addr_count = 1;
 	}
 
+	int cmod_split_modified = FALSE;
 	if (vertical)
+	{
+	    if (!(cmdmod.cmod_split & WSP_VERT))
+		cmod_split_modified = TRUE;
 	    cmdmod.cmod_split |= WSP_VERT;
+	}
 	ex_splitview(&split_ea);
+	if (cmod_split_modified)
+	    cmdmod.cmod_split &= ~WSP_VERT;
 	if (curwin == old_curwin)
 	{
 	    // split failed
@@ -3965,7 +3972,8 @@ update_system_term(term_T *term)
 	else
 	    pos.col = 0;
 
-	screen_line(curwin, term->tl_toprow + pos.row, 0, pos.col, Columns, 0);
+	screen_line(curwin, term->tl_toprow + pos.row, 0, pos.col, Columns, -1,
+									    0);
     }
 
     term->tl_dirty_row_start = MAX_ROW;
@@ -4088,7 +4096,7 @@ term_update_window(win_T *wp)
 #ifdef FEAT_MENU
 				+ winbar_height(wp)
 #endif
-				, wp->w_wincol, pos.col, wp->w_width,
+				, wp->w_wincol, pos.col, wp->w_width, -1,
 #ifdef FEAT_PROP_POPUP
 				popup_is_popup(wp) ? SLF_POPUP :
 #endif
@@ -6163,8 +6171,16 @@ f_term_getjob(typval_T *argvars, typval_T *rettv)
     buf = term_get_buf(argvars, "term_getjob()");
     if (buf == NULL)
     {
-	rettv->v_type = VAR_SPECIAL;
-	rettv->vval.v_number = VVAL_NULL;
+	if (in_vim9script())
+	{
+	    rettv->v_type = VAR_JOB;
+	    rettv->vval.v_job = NULL;
+	}
+	else
+	{
+	    rettv->v_type = VAR_SPECIAL;
+	    rettv->vval.v_number = VVAL_NULL;
+	}
 	return;
     }
 

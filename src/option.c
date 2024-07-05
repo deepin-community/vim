@@ -364,6 +364,76 @@ set_init_clean_rtp(void)
 }
 #endif
 
+#ifdef UNIX
+/*
+ * Change 'runtimepath' and 'packdir' to '$XDG_CONFIG_HOME/vim' if the only
+ * vimrc found is located in '$XDG_CONFIG_HOME/vim/vimrc'.
+ * In case the '$XDG_CONFIG_HOME' variable is not set, '$HOME/.config' is used
+ * as a fallback as is defined in the XDG base dir specification:
+ * <https://specifications.freedesktop.org/basedir-spec/basedir-spec-latest.html>
+ */
+    static void
+set_init_xdg_rtp(void)
+{
+    int		opt_idx;
+    int		has_xdg_env = TRUE;
+    int		should_free_xdg_dir = FALSE;
+    char_u	*vimrc1 = NULL;
+    char_u	*vimrc2 = NULL;
+    char_u	*xdg_dir = NULL;
+    char_u	*xdg_rtp = NULL;
+    char_u	*vimrc_xdg = NULL;
+
+    // initialize chartab, so we can expand $HOME
+    (void)init_chartab();
+    vimrc1 = expand_env_save((char_u *)USR_VIMRC_FILE);
+    vimrc2 = expand_env_save((char_u *)USR_VIMRC_FILE2);
+
+    xdg_dir = mch_getenv("XDG_CONFIG_HOME");
+    if (!xdg_dir)
+    {
+	xdg_dir = expand_env_save((char_u *)"~/.config");
+	should_free_xdg_dir = TRUE;
+	has_xdg_env = FALSE;
+    }
+    vimrc_xdg = concat_fnames(xdg_dir, (char_u *)"vim/vimrc", TRUE);
+
+    if (file_is_readable(vimrc1) || file_is_readable(vimrc2) ||
+	    !file_is_readable(vimrc_xdg))
+	goto theend;
+
+    xdg_rtp = has_xdg_env ? (char_u *)XDG_RUNTIMEPATH
+	: (char_u *)XDG_RUNTIMEPATH_FB;
+
+    if ((opt_idx = findoption((char_u *)"runtimepath")) < 0)
+	goto theend;
+
+    options[opt_idx].def_val[VI_DEFAULT] = xdg_rtp;
+    p_rtp = xdg_rtp;
+
+    if ((opt_idx = findoption((char_u *)"packpath")) < 0)
+	goto theend;
+
+    options[opt_idx].def_val[VI_DEFAULT] = xdg_rtp;
+    p_pp = xdg_rtp;
+
+#if defined(XDG_VDIR) && defined(FEAT_SESSION)
+    if ((opt_idx = findoption((char_u *)"viewdir")) < 0)
+	goto theend;
+
+    options[opt_idx].def_val[VI_DEFAULT] = (char_u *)XDG_VDIR;
+    p_vdir = (char_u *)XDG_VDIR;
+#endif
+
+theend:
+    vim_free(vimrc1);
+    vim_free(vimrc2);
+    vim_free(vimrc_xdg);
+    if (should_free_xdg_dir)
+	vim_free(xdg_dir);
+}
+#endif
+
 /*
  * Expand environment variables and things like "~" for the defaults.
  * If option_expand() returns non-NULL the variable is expanded.  This can
@@ -450,9 +520,10 @@ set_init_default_encoding(void)
     char_u	*p;
     int		opt_idx;
 
-# ifdef MSWIN
+# if defined(MSWIN) || defined(__MVS__)
     // MS-Windows has builtin support for conversion to and from Unicode, using
     // "utf-8" for 'encoding' should work best for most users.
+    // z/OS built should default to UTF-8 mode as setlocale does not respect utf-8 environment variable locales
     p = vim_strsave((char_u *)ENC_DFLT);
 # else
     // enc_locale() will try to find the encoding of the current locale.
@@ -587,6 +658,7 @@ set_init_1(int clean_arg)
     set_options_default(0);
 
 #ifdef UNIX
+    set_init_xdg_rtp();
     set_init_restricted_mode();
 #endif
 
@@ -791,7 +863,10 @@ set_string_default_esc(char *name, char_u *val, int escape)
 
     opt_idx = findoption((char_u *)name);
     if (opt_idx < 0)
+    {
+	vim_free(p);
 	return;
+    }
 
     if (options[opt_idx].flags & P_DEF_ALLOCED)
 	vim_free(options[opt_idx].def_val[VI_DEFAULT]);
@@ -2857,10 +2932,10 @@ didset_options2(void)
     check_opt_wim();
 
     // Parse default for 'listchars'.
-    (void)set_listchars_option(curwin, curwin->w_p_lcs, TRUE);
+    (void)set_listchars_option(curwin, curwin->w_p_lcs, TRUE, NULL, 0);
 
     // Parse default for 'fillchars'.
-    (void)set_fillchars_option(curwin, curwin->w_p_fcs, TRUE);
+    (void)set_fillchars_option(curwin, curwin->w_p_fcs, TRUE, NULL, 0);
 
 #ifdef FEAT_CLIPBOARD
     // Parse default for 'clipboard'
@@ -3267,27 +3342,6 @@ did_set_binary(optset_T *args)
 
     return NULL;
 }
-
-#if defined(FEAT_LINEBREAK) || defined(PROTO)
-/*
- * Called when the 'breakat' option changes value.
- */
-    char *
-did_set_breakat(optset_T *args UNUSED)
-{
-    char_u	*p;
-    int		i;
-
-    for (i = 0; i < 256; i++)
-	breakat_flags[i] = FALSE;
-
-    if (p_breakat != NULL)
-	for (p = p_breakat; *p; p++)
-	    breakat_flags[*p] = TRUE;
-
-    return NULL;
-}
-#endif
 
 /*
  * Process the updated 'buflisted' option value.
@@ -3698,7 +3752,7 @@ did_set_modified(optset_T *args)
     if (!args->os_newval.boolean)
 	save_file_ff(curbuf);	// Buffer is unchanged
     redraw_titles();
-    modified_was_set = args->os_newval.boolean;
+    curbuf->b_modified_was_set = args->os_newval.boolean;
     return NULL;
 }
 
@@ -4616,8 +4670,10 @@ set_bool_option(
 #endif
 
     comp_col();			    // in case 'ruler' or 'showcmd' changed
+
     if (curwin->w_curswant != MAXCOL
-		     && (options[opt_idx].flags & (P_CURSWANT | P_RALL)) != 0)
+		     && (options[opt_idx].flags & (P_CURSWANT | P_RALL)) != 0
+				   && (options[opt_idx].flags & P_HLONLY) == 0)
 	curwin->w_set_curswant = TRUE;
 
     if ((opt_flags & OPT_NO_REDRAW) == 0)
@@ -4859,9 +4915,12 @@ set_num_option(
 #endif
 
     comp_col();			    // in case 'columns' or 'ls' changed
+
     if (curwin->w_curswant != MAXCOL
-		     && (options[opt_idx].flags & (P_CURSWANT | P_RALL)) != 0)
+		     && (options[opt_idx].flags & (P_CURSWANT | P_RALL)) != 0
+				   && (options[opt_idx].flags & P_HLONLY) == 0)
 	curwin->w_set_curswant = TRUE;
+
     if ((opt_flags & OPT_NO_REDRAW) == 0)
 	check_redraw(options[opt_idx].flags);
 
@@ -4882,11 +4941,14 @@ check_redraw(long_u flags)
 	status_redraw_all();
 
     if ((flags & P_RBUF) || (flags & P_RWIN) || all)
-	changed_window_setting();
+    {
+	if (flags & P_HLONLY)
+	    redraw_later(UPD_NOT_VALID);
+	else
+	    changed_window_setting();
+    }
     if (flags & P_RBUF)
 	redraw_curbuf_later(UPD_NOT_VALID);
-    if (flags & P_RWINONLY)
-	redraw_later(UPD_NOT_VALID);
     if (doclear)
 	redraw_all_later(UPD_CLEAR);
     else if (all)
@@ -6162,6 +6224,10 @@ unset_global_local_option(char_u *name, void *from)
 	    clear_string_option(&buf->b_p_inc);
 	    break;
 # endif
+	case PV_COT:
+	    clear_string_option(&buf->b_p_cot);
+	    buf->b_cot_flags = 0;
+	    break;
 	case PV_DICT:
 	    clear_string_option(&buf->b_p_dict);
 	    break;
@@ -6218,12 +6284,14 @@ unset_global_local_option(char_u *name, void *from)
 	    break;
 	case PV_LCS:
 	    clear_string_option(&((win_T *)from)->w_p_lcs);
-	    set_listchars_option((win_T *)from, ((win_T *)from)->w_p_lcs, TRUE);
+	    set_listchars_option((win_T *)from, ((win_T *)from)->w_p_lcs, TRUE,
+								      NULL, 0);
 	    redraw_later(UPD_NOT_VALID);
 	    break;
 	case PV_FCS:
 	    clear_string_option(&((win_T *)from)->w_p_fcs);
-	    set_fillchars_option((win_T *)from, ((win_T *)from)->w_p_fcs, TRUE);
+	    set_fillchars_option((win_T *)from, ((win_T *)from)->w_p_fcs, TRUE,
+								      NULL, 0);
 	    redraw_later(UPD_NOT_VALID);
 	    break;
 	case PV_VE:
@@ -6269,6 +6337,7 @@ get_varp_scope(struct vimoption *p, int scope)
 	    case PV_DEF:  return (char_u *)&(curbuf->b_p_def);
 	    case PV_INC:  return (char_u *)&(curbuf->b_p_inc);
 #endif
+	    case PV_COT:  return (char_u *)&(curbuf->b_p_cot);
 	    case PV_DICT: return (char_u *)&(curbuf->b_p_dict);
 	    case PV_TSR:  return (char_u *)&(curbuf->b_p_tsr);
 #ifdef FEAT_COMPL_FUNC
@@ -6349,6 +6418,8 @@ get_varp(struct vimoption *p)
 	case PV_INC:	return *curbuf->b_p_inc != NUL
 				    ? (char_u *)&(curbuf->b_p_inc) : p->var;
 #endif
+	case PV_COT:	return *curbuf->b_p_cot != NUL
+				    ? (char_u *)&(curbuf->b_p_cot) : p->var;
 	case PV_DICT:	return *curbuf->b_p_dict != NUL
 				    ? (char_u *)&(curbuf->b_p_dict) : p->var;
 	case PV_TSR:	return *curbuf->b_p_tsr != NUL
@@ -6430,6 +6501,7 @@ get_varp(struct vimoption *p)
 #ifdef FEAT_LINEBREAK
 	case PV_NUW:	return (char_u *)&(curwin->w_p_nuw);
 #endif
+	case PV_WFB:	return (char_u *)&(curwin->w_p_wfb);
 	case PV_WFH:	return (char_u *)&(curwin->w_p_wfh);
 	case PV_WFW:	return (char_u *)&(curwin->w_p_wfw);
 #if defined(FEAT_QUICKFIX)
@@ -6629,8 +6701,8 @@ after_copy_winopt(win_T *wp)
     fill_culopt_flags(NULL, wp);
     check_colorcolumn(wp);
 #endif
-    set_listchars_option(wp, wp->w_p_lcs, TRUE);
-    set_fillchars_option(wp, wp->w_p_fcs, TRUE);
+    set_listchars_option(wp, wp->w_p_lcs, TRUE, NULL, 0);
+    set_fillchars_option(wp, wp->w_p_fcs, TRUE, NULL, 0);
 }
 
     static char_u *
@@ -7140,6 +7212,8 @@ buf_copy_options(buf_T *buf, int flags)
 	    COPY_OPT_SCTX(buf, BV_INEX);
 # endif
 #endif
+	    buf->b_p_cot = empty_option;
+	    buf->b_cot_flags = 0;
 	    buf->b_p_dict = empty_option;
 	    buf->b_p_tsr = empty_option;
 #ifdef FEAT_COMPL_FUNC
@@ -8290,10 +8364,10 @@ get_sidescrolloff_value(void)
 }
 
 /*
- * Get the local or global value of 'backupcopy'.
+ * Get the local or global value of 'backupcopy' flags.
  */
     unsigned int
-get_bkc_value(buf_T *buf)
+get_bkc_flags(buf_T *buf)
 {
     return buf->b_bkc_flags ? buf->b_bkc_flags : bkc_flags;
 }
@@ -8312,7 +8386,7 @@ get_flp_value(buf_T *buf)
 #endif
 
 /*
- * Get the local or global value of the 'virtualedit' flags.
+ * Get the local or global value of 'virtualedit' flags.
  */
     unsigned int
 get_ve_flags(void)

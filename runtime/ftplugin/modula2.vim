@@ -1,7 +1,8 @@
 " Vim filetype plugin file
 " Language:	Modula-2
 " Maintainer:	Doug Kearns <dougkearns@gmail.com>
-" Last Change:	2021 Apr 08
+" Last Change:	2024 Jan 14
+" 		2024 May 23 by Riley Bruins <ribru17@gmail.com> ('commentstring')
 
 if exists("b:did_ftplugin")
   finish
@@ -17,7 +18,7 @@ if s:dialect ==# "r10"
   setlocal comments=s:(*,m:\ ,e:*),:!
   setlocal commentstring=!\ %s
 else
-  setlocal commentstring=(*%s*)
+  setlocal commentstring=(*\ %s\ *)
   setlocal comments=s:(*,m:\ ,e:*)
 endif
 setlocal formatoptions-=t formatoptions+=croql
@@ -39,8 +40,12 @@ if exists("loaded_matchit") && !exists("b:match_words")
 endif
 
 if (has("gui_win32") || has("gui_gtk")) && !exists("b:browsefilter")
-  let b:browsefilter = "Modula-2 Source Files (*.def *.mod)\t*.def;*.mod\n" ..
-	\	       "All Files (*.*)\t*.*\n"
+  let b:browsefilter = "Modula-2 Source Files (*.def, *.mod)\t*.def;*.mod\n"
+  if has("win32")
+    let b:browsefilter ..= "All Files (*.*)\t*\n"
+  else
+    let b:browsefilter ..= "All Files (*)\t*\n"
+  endif
   let b:undo_ftplugin ..= " | unlet! b:browsefilter"
 endif
 

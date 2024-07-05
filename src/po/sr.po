@@ -2,7 +2,7 @@
 #
 # Do ":help uganda"  in Vim to read copying and usage conditions.
 # Do ":help credits" in Vim to see a list of people who contributed.
-# Copyright (C) 2023
+# Copyright (C) 2024
 # This file is distributed under the same license as the Vim package.
 # FIRST AUTHOR Ivan Pešić <ivan.pesic@gmail.com>, 2017.
 #
@@ -10,8 +10,8 @@ msgid ""
 msgstr ""
 "Project-Id-Version: Vim(Serbian)\n"
 "Report-Msgid-Bugs-To: \n"
-"POT-Creation-Date: 2023-12-20 12:15+0400\n"
-"PO-Revision-Date: 2023-12-20 12:17+0400\n"
+"POT-Creation-Date: 2024-04-25 12:55+0400\n"
+"PO-Revision-Date: 2024-04-25 13:09+0400\n"
 "Last-Translator: Ivan Pešić <ivan.pesic@gmail.com>\n"
 "Language-Team: Serbian\n"
 "Language: sr\n"
@@ -179,6 +179,9 @@ msgstr " (фајл %d од %d)"
 #, c-format
 msgid " (file (%d) of %d)"
 msgstr " (фајл (%d) од %d)"
+
+msgid "[Command Line]"
+msgstr "[Командна линија]"
 
 msgid "[Prompt]"
 msgstr "[Одзив]"
@@ -704,9 +707,6 @@ msgstr "Грешка"
 
 msgid "Interrupt"
 msgstr "Прекид"
-
-msgid "[Command Line]"
-msgstr "[Командна линија]"
 
 msgid "is a directory"
 msgstr "је директоријум"
@@ -1450,6 +1450,9 @@ msgstr "mapnew() аргумент"
 
 msgid "filter() argument"
 msgstr "filter() аргумент"
+
+msgid "foreach() argument"
+msgstr "foreach() аргумент"
 
 msgid "extendnew() argument"
 msgstr "extendnew() аргумент"
@@ -2508,6 +2511,9 @@ msgstr "у %s на %s"
 msgid "Printing '%s'"
 msgstr "Штампа се ’%s’"
 
+msgid "DefaultFontNameForWindows"
+msgstr "Consolas"
+
 #, c-format
 msgid "Opening the X display took %ld msec"
 msgstr "Отварање X приказа је трајало %ld мсек"
@@ -3456,8 +3462,8 @@ msgid "%s returning %s"
 msgstr "%s враћа %s"
 
 #, c-format
-msgid "Function %s does not need compiling"
-msgstr "Није потребно да се функција %s компајлира"
+msgid "Function %s%s%s does not need compiling"
+msgstr "Није потребно да се функција %s%s%s компајлира"
 
 #, c-format
 msgid "%s (%s, compiled %s)"
@@ -3615,6 +3621,9 @@ msgstr " 2ги кориснички vimrc фајл: \""
 
 msgid " 3rd user vimrc file: \""
 msgstr " 3ћи кориснички vimrc фајл: \""
+
+msgid " 4th user vimrc file: \""
+msgstr " 4ти кориснички vimrc фајл: \""
 
 msgid "      user exrc file: \""
 msgstr "      кориснички exrc фајл: \""
@@ -4214,6 +4223,10 @@ msgid "E105: Using :loadkeymap not in a sourced file"
 msgstr "E105: Коришћење :loadkeymap ван фајла који се учитава као скрипта"
 
 #, c-format
+msgid "E106: Unsupported diff output format: %s"
+msgstr "E106: Није подржан diff излазни формат: %s"
+
+#, c-format
 msgid "E107: Missing parentheses: %s"
 msgstr "E107: Недостају заграде: %s"
 
@@ -4543,8 +4556,8 @@ msgstr "E196: У овој верзији нема диграфа"
 msgid "E197: Cannot set language to \"%s\""
 msgstr "E197: Језик не може да се постави на „%s”"
 
-msgid "E199: Active window or buffer deleted"
-msgstr "E199: Active window or buffer deleted"
+msgid "E199: Active window or buffer changed or deleted"
+msgstr "E199: Активни прозор или бафер је измењен или обрисан"
 
 msgid "E200: *ReadPre autocommands made the file unreadable"
 msgstr "E200: *ReadPre аутокоманде су учиниле фајл нечитљивим"
@@ -6824,6 +6837,10 @@ msgstr ""
 "E876: (НКА регуларни израз) Нема довољно простора да се ускладишти комплетан "
 "НКА"
 
+#, c-format
+msgid "E877: (NFA regexp) Invalid character class: %d"
+msgstr "E877: (НКА регуларни израз) Неисправна класа карактера: %d"
+
 msgid "E878: (NFA regexp) Could not allocate memory for branch traversal!"
 msgstr ""
 "E878: (НКА регуларни израз) Није могла да се алоцира меморија за обилазак "
@@ -8447,14 +8464,14 @@ msgid "E1330: Invalid type for object variable: %s"
 msgstr "E1330: Неисправан тип променљиве објекта: %s"
 
 msgid ""
-"E1331: Public must be followed by \"var\" or \"static\" or \"final\" or "
+"E1331: public must be followed by \"var\" or \"static\" or \"final\" or "
 "\"const\""
 msgstr ""
-"E1331: Након Public мора да следи „var” или „static” или „final” или „const”"
+"E1331: Након public мора да следи „var” или „static” или „final” или „const”"
 
 #, c-format
-msgid "E1332: Public variable name cannot start with underscore: %s"
-msgstr "E1332: Име Public променљиве не може почети доњом цртом: %s"
+msgid "E1332: public variable name cannot start with underscore: %s"
+msgstr "E1332: Име public променљиве не може почети доњом цртом: %s"
 
 #, c-format
 msgid "E1333: Cannot access protected variable \"%s\" in class \"%s\""
@@ -8652,10 +8669,10 @@ msgstr ""
 "E1386: Методи објекта „%s” може да се приступи само користећи објекат класе "
 "„%s”"
 
-msgid "E1387: Public variable not supported in an interface"
-msgstr "E1387: У интерфејсу се не подржава јавна променљива"
+msgid "E1387: public variable not supported in an interface"
+msgstr "E1387: У интерфејсу се не подржава public променљива"
 
-msgid "E1388: Public keyword not supported for a method"
+msgid "E1388: public keyword not supported for a method"
 msgstr "E1388: Метода не подржава кључну реч public"
 
 msgid "E1389: Missing name after implements"
@@ -8747,6 +8764,72 @@ msgid "E1411: Missing dot after object \"%s\""
 msgstr "E1411: Недостаје тачка након објекта „%s”"
 
 #, c-format
+msgid "E1412: Builtin object method \"%s\" not supported"
+msgstr "E1412: Није подржана уграђена метода објекта „%s”"
+
+msgid "E1413: Builtin class method not supported"
+msgstr "E1413: Није подржана уграђена метода класе"
+
+msgid "E1414: Enum can only be defined in Vim9 script"
+msgstr "E1414: Набрајање може да се дефинише само у Vim9 скрипти"
+
+#, c-format
+msgid "E1415: Enum name must start with an uppercase letter: %s"
+msgstr "E1415: Име набрајања мора да почне великим словом: %s"
+
+msgid "E1416: Enum cannot extend a class or enum"
+msgstr "E1416: Набрајање не може да прошири класу или набрајање"
+
+msgid "E1417: Abstract cannot be used in an Enum"
+msgstr "E1417: Abstract не може да се користи у набрајању"
+
+#, c-format
+msgid "E1418: Invalid enum value declaration: %s"
+msgstr "E1418: Неисправна декларација вредности набрајања: %s"
+
+#, c-format
+msgid "E1419: Not a valid command in an Enum: %s"
+msgstr "E1419: Команда не важи у набрајању: %s"
+
+msgid "E1420: Missing :endenum"
+msgstr "E1420: Недостаје :endenum"
+
+#, c-format
+msgid "E1421: Enum \"%s\" cannot be used as a value"
+msgstr "E1421: Набрајање „%s” не може да се користи као вредност"
+
+#, c-format
+msgid "E1422: Enum value \"%s\" not found in enum \"%s\""
+msgstr "E1422: Вредност набрајања „%s” није пронађена у набрајању „%s”"
+
+#, c-format
+msgid "E1423: Enum value \"%s.%s\" cannot be modified"
+msgstr "E1423: Вредност набрајања „%s.%s” не може да се измени"
+
+#, c-format
+msgid "E1424: Using an Enum \"%s\" as a Number"
+msgstr "E1424: Набрајање „%s” се користи као Број"
+
+#, c-format
+msgid "E1425: Using an Enum \"%s\" as a String"
+msgstr "E1425: Набрајање „%s” се користи као Стринг"
+
+#, c-format
+msgid "E1426: Enum \"%s\" ordinal value cannot be modified"
+msgstr "E1426: Редна вредност набрајања „%s” не може да се измени"
+
+#, c-format
+msgid "E1427: Enum \"%s\" name cannot be modified"
+msgstr "E1427: Набрајање „%s” не може да се измени"
+
+#, c-format
+msgid "E1428: Duplicate enum value: %s"
+msgstr "E1428: Дуплирана вредност набрајања: %s"
+
+msgid "E1429: Class can only be used in a script"
+msgstr "E1429: Class може да се употреби само у скрипти"
+
+#, c-format
 msgid "E1500: Cannot mix positional and non-positional arguments: %s"
 msgstr "E1500: Не могу да се мешају позициони и непозициони аргументи: %s"
 
@@ -8791,6 +8874,17 @@ msgstr ""
 #, c-format
 msgid "E1510: Value too large: %s"
 msgstr "E1510: Вредност је превелика: %s"
+
+#, c-format
+msgid "E1511: Wrong number of characters for field \"%s\""
+msgstr "E1511: Погрешан број карактера за поље „%s”"
+
+#, c-format
+msgid "E1512: Wrong character width for field \"%s\""
+msgstr "E1512: Погрешна ширина карактера за поље „%s”"
+
+msgid "E1513: Cannot switch buffer. 'winfixbuf' is enabled"
+msgstr "E1513: Не може да пређе на други бафер. Укључена је опција 'winfixbuf'"
 
 msgid "--No lines in buffer--"
 msgstr "--У баферу нема линија--"
@@ -9524,6 +9618,9 @@ msgstr "минимални број линија који се користи з
 
 msgid "minimal number of lines used for any window"
 msgstr "минимални број линија који се користи за било који прозор"
+
+msgid "keep window focused on a single buffer"
+msgstr "одржава фокус прозора на одређени бафер"
 
 msgid "keep the height of the window"
 msgstr "задржава се висина прозора"

@@ -38,8 +38,8 @@
 #define P_RSTAT		0x1000	// redraw status lines
 #define P_RWIN		0x2000	// redraw current window and recompute text
 #define P_RBUF		0x4000	// redraw current buffer and recompute text
-#define P_RALL		0x6000	// redraw all windows
-#define P_RCLR		0x7000	// clear and redraw all
+#define P_RALL		0x6000	// redraw all windows and recompute text
+#define P_RCLR		0x7000	// clear and redraw all and recompute text
 
 #define P_COMMA		 0x8000	 // comma separated list
 #define P_ONECOMMA	0x18000L // P_COMMA and cannot have two consecutive
@@ -58,7 +58,7 @@
 #define P_CURSWANT    0x4000000L // update curswant required; not needed when
 				 // there is a redraw flag
 #define P_NDNAME      0x8000000L // only normal dir name chars allowed
-#define P_RWINONLY   0x10000000L // only redraw current window
+#define P_HLONLY     0x10000000L // option only changes highlight, not text
 #define P_MLE	     0x20000000L // under control of 'modelineexpr'
 #define P_FUNC	     0x40000000L // accept a function reference or a lambda
 #define P_COLON	     0x80000000L // values use colons to create sublists
@@ -130,7 +130,7 @@ typedef enum {
 #define ENC_UCSBOM	"ucs-bom"	// check for BOM at start of file
 
 // default value for 'encoding'
-#ifdef MSWIN
+#if defined(MSWIN) || defined(__MVS__)
 # define ENC_DFLT	"utf-8"
 #else
 # define ENC_DFLT	"latin1"
@@ -513,6 +513,20 @@ EXTERN int	p_confirm;	// 'confirm'
 #endif
 EXTERN int	p_cp;		// 'compatible'
 EXTERN char_u	*p_cot;		// 'completeopt'
+EXTERN unsigned	cot_flags;	// flags from 'completeopt'
+// Keep in sync with p_cot_values in optionstr.c
+#define COT_MENU	0x001
+#define COT_MENUONE	0x002
+#define COT_ANY_MENU	0x003	// combination of menu flags
+#define COT_LONGEST	0x004	// FALSE: insert full match,
+				// TRUE: insert longest prefix
+#define COT_PREVIEW	0x008
+#define COT_POPUP	0x010
+#define COT_POPUPHIDDEN	0x020
+#define COT_ANY_PREVIEW	0x038	// combination of preview flags
+#define COT_NOINSERT	0x040	// FALSE: select & insert, TRUE: noinsert
+#define COT_NOSELECT	0x080	// FALSE: select & insert, TRUE: noselect
+#define COT_FUZZY	0x100	// TRUE: fuzzy match enabled
 #ifdef BACKSLASH_IN_FILENAME
 EXTERN char_u	*p_csl;		// 'completeslash'
 #endif
@@ -637,7 +651,7 @@ EXTERN char_u	*p_guifontset;	// 'guifontset'
 EXTERN char_u	*p_guifontwide;	// 'guifontwide'
 EXTERN int	p_guipty;	// 'guipty'
 #endif
-#ifdef FEAT_GUI_GTK
+#if defined(FEAT_GUI_GTK) || defined(FEAT_GUI_MSWIN)
 EXTERN char_u	*p_guiligatures;  // 'guiligatures'
 # endif
 #if defined(FEAT_GUI_GTK) || defined(FEAT_GUI_X11)
@@ -1127,6 +1141,7 @@ enum
     , BV_CMS
 #endif
     , BV_COM
+    , BV_COT
     , BV_CPT
     , BV_DICT
     , BV_TSR
@@ -1309,6 +1324,7 @@ enum
 #ifdef FEAT_STL_OPT
     , WV_STL
 #endif
+    , WV_WFB
     , WV_WFH
     , WV_WFW
     , WV_WRAP

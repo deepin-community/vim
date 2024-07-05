@@ -18,6 +18,7 @@ include Make_all.mak
 
 .SUFFIXES:
 .SUFFIXES: .c .o .txt .html
+.PHONY: all vimtags noerrors perlhtml clean test_urls
 
 all: tags vim.man evim.man vimdiff.man vimtutor.man xxd.man $(CONVERTED)
 
@@ -28,30 +29,36 @@ vimtags: $(DOCS)
 
 # Use "doctags" to generate the tags file.  Only works for English!
 tags: doctags $(DOCS)
-	./doctags $(DOCS) | LANG=C LC_ALL=C sort >tags
+	./doctags $(DOCS) | LANG=C LC_ALL=C sort >$@
 	uniq -d -2 tags
 
 doctags: doctags.c
 	$(CC) doctags.c -o doctags
 
 vim.man: vim.1
-	nroff -man vim.1 | sed -e s/.//g > vim.man
+	nroff -man $< | sed -e s/.//g > $@
 
 evim.man: evim.1
-	nroff -man evim.1 | sed -e s/.//g > evim.man
+	nroff -man $< | sed -e s/.//g > $@
 
 vimdiff.man: vimdiff.1
-	nroff -man vimdiff.1 | sed -e s/.//g > vimdiff.man
+	nroff -man $< | sed -e s/.//g > $@
 
 vimtutor.man: vimtutor.1
-	nroff -man vimtutor.1 | sed -e s/.//g > vimtutor.man
+	nroff -man $< | sed -e s/.//g > $@
 
 xxd.man: xxd.1
-	nroff -man xxd.1 | sed -e s/.//g > xxd.man
+	nroff -man $< | sed -e s/.//g > $@
 
-uganda.nsis.txt: uganda.txt
-	sed -e 's/[ 	]*\*[-a-zA-Z0-9.]*\*//g' -e 's/vim:tw=78:.*//' \
-		uganda.txt | uniq >uganda.nsis.txt
+uganda.nsis.txt : uganda.???
+	for dpn in $?; do \
+	  trg=$@; \
+          sed -e 's/[ 	]*\*.*\*//g' -e 's/vim:tw=[[:digit:]][[:digit:]]:.*//' \
+            $${dpn} | uniq > $${trg%txt}$${dpn##*.}; \
+	done
+# This files needs to be in dos fileformat for NSIS.
+	$(VIMEXE) -e -X -u NONE --cmd "set notitle noicon nocp noml viminfo=" \
+	  -c "argdo write ++ff=dos" -c "qa" uganda.nsis.???
 
 # Awk version of .txt to .html conversion.
 html: noerrors tags $(HTMLS)
@@ -68,10 +75,10 @@ $(HTMLS): tags.ref
 # index.html is the starting point for HTML, but for the help files it is
 # help.txt.  Therefore use vimindex.html for index.txt.
 index.html: help.txt
-	$(AWK) -f makehtml.awk help.txt >index.html
+	$(AWK) -f makehtml.awk $< >$@
 
 vimindex.html: index.txt
-	$(AWK) -f makehtml.awk index.txt >vimindex.html
+	$(AWK) -f makehtml.awk $< >$@
 
 tags.ref tags.html: tags
 	$(AWK) -f maketags.awk tags >tags.html
@@ -84,7 +91,7 @@ perlhtml: tags $(DOCS)
 
 # Check URLs in the help with "curl".
 test_urls:
-	vim -S test_urls.vim
+	$(VIMEXE) --clean -S test_urls.vim
 
 clean:
 	-rm -f doctags *.html tags.ref
@@ -92,58 +99,58 @@ clean:
 # These files are in the extra archive, skip if not present
 
 arabic.txt:
-	touch arabic.txt
+	touch $@
 
 farsi.txt:
-	touch farsi.txt
+	touch $@
 
 hebrew.txt:
-	touch hebrew.txt
+	touch $@
 
 russian.txt:
-	touch russian.txt
+	touch $@
 
 gui_w32.txt:
-	touch gui_w32.txt
+	touch $@
 
 if_ole.txt:
-	touch if_ole.txt
+	touch $@
 
 os_390.txt:
-	touch os_390.txt
+	touch $@
 
 os_amiga.txt:
-	touch os_amiga.txt
+	touch $@
 
 os_beos.txt:
-	touch os_beos.txt
+	touch $@
 
 os_dos.txt:
-	touch os_dos.txt
+	touch $@
 
 os_haiku.txt:
-	touch os_haiku.txt
+	touch $@
 
 os_mac.txt:
-	touch os_mac.txt
+	touch $@
 
 os_mint.txt:
-	touch os_mint.txt
+	touch $@
 
 os_msdos.txt:
-	touch os_msdos.txt
+	touch $@
 
 os_os2.txt:
-	touch os_os2.txt
+	touch $@
 
 os_qnx.txt:
-	touch os_qnx.txt
+	touch $@
 
 os_risc.txt:
-	touch os_risc.txt
+	touch $@
 
 os_win32.txt:
-	touch os_win32.txt
+	touch $@
 
 # Note that $< works with GNU make while $> works for BSD make.
 # Is there a solution that works for both??
