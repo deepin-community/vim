@@ -1,3 +1,38 @@
+vim (2:9.1.0496-1) unstable; urgency=medium
+
+  * Merge upstream tag v9.1.0496
+  * Refresh patches; drop backported test_codestyle patch
+
+ -- James McCoy <jamessan@debian.org>  Wed, 19 Jun 2024 21:07:11 -0400
+
+vim (2:9.1.0377-1) unstable; urgency=medium
+
+  * Merge upstream tag v9.1.0377
+  * Add ncurses-term Build-Depends for tests requiring vt420 TERM definition
+  * Backport fix for test_codestyle failure
+
+ -- James McCoy <jamessan@debian.org>  Sat, 27 Apr 2024 11:01:43 -0400
+
+vim (2:9.1.0374-1) unstable; urgency=medium
+
+  * Team upload.
+  * New upstream tag v9.1.0374.
+  * runtime(debversions): Add oracular (24.10) as Ubuntu release name.
+
+ -- Simon Quigley <tsimonq2@debian.org>  Fri, 26 Apr 2024 16:34:19 -0500
+
+vim (2:9.1.0199-1) unstable; urgency=medium
+
+  * Merge upstream tag v9.1.0199
+    + 9.1.0064: Wayland support, which can be enabled by setting
+      $GVIM_ENABLE_WAYLAND
+    + 9.1.0162: Fix error handling when saving a file with xattrs (Closes:
+      #1065978)
+    + syntax/deb822sources.vim: Fix erroneous highlighting of keywords in
+      field values. (Closes: #1061630)
+
+ -- James McCoy <jamessan@debian.org>  Sun, 24 Mar 2024 09:16:49 -0400
+
 vim (2:9.1.0016-1) unstable; urgency=medium
 
   * Team upload.

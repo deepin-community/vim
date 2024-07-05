@@ -23,6 +23,7 @@ Build-Depends:
 # Needed to run libvterm's tests
  libtool-bin <!nocheck>,
  lua5.1,
+ ncurses-term <!nocheck>,
  procps <!nocheck>,
  python3-dev,
  ruby [!alpha !ia64] <!pkg.vim.noruby>,

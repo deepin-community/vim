@@ -13,6 +13,8 @@
 : help
  : help
 
+:2match
+:3match
 :append
     text
 .
@@ -556,7 +558,7 @@
 :verbose
 :vertical
 :vim9cmd
-:vim9script
+" :vim9script
 :vimgrep
 :vimgrepadd
 :visual
@@ -603,6 +605,8 @@ call Foo() | help
 call Foo() |help
 call Foo()| help
 
+call Foo() | 2match
+call Foo() | 3match
 " FIXME
 call Foo() | append
     text
@@ -1148,7 +1152,7 @@ call Foo() | version
 call Foo() | verbose
 call Foo() | vertical
 call Foo() | vim9cmd
-call Foo() | vim9script
+" call Foo() | vim9script
 call Foo() | vimgrep
 call Foo() | vimgrepadd
 call Foo() | visual
