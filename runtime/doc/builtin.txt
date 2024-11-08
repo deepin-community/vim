@@ -1,4 +1,4 @@
-*builtin.txt*	For Vim version 9.1.  Last change: 2024 Jun 17
+*builtin.txt*	For Vim version 9.1.  Last change: 2024 Oct 12
 
 
 		  VIM REFERENCE MANUAL	  by Bram Moolenaar
@@ -28,9 +28,9 @@ acos({expr})			Float	arc cosine of {expr}
 add({object}, {item})		List/Blob   append {item} to {object}
 and({expr}, {expr})		Number	bitwise AND
 append({lnum}, {text})		Number	append {text} below line {lnum}
-appendbufline({expr}, {lnum}, {text})
+appendbufline({buf}, {lnum}, {text})
 				Number	append {text} below line {lnum}
-					in buffer {expr}
+					in buffer {buf}
 argc([{winid}])			Number	number of files in the argument list
 argidx()			Number	current index in the argument list
 arglistid([{winnr} [, {tabnr}]]) Number	argument list id
@@ -67,6 +67,8 @@ autocmd_get([{opts}])		List	return a list of autocmds
 balloon_gettext()		String	current text in the balloon
 balloon_show({expr})		none	show {expr} inside the balloon
 balloon_split({msg})		List	split {msg} as used for a balloon
+bindtextdomain({package}, {path})
+				Bool	bind text domain to specified path
 blob2list({blob})		List	convert {blob} into a list of numbers
 browse({save}, {title}, {initdir}, {default})
 				String	put up a file requester
@@ -153,8 +155,8 @@ diff_filler({lnum})		Number	diff filler lines about {lnum}
 diff_hlID({lnum}, {col})	Number	diff highlighting at {lnum}/{col}
 digraph_get({chars})		String	get the |digraph| of {chars}
 digraph_getlist([{listall}])	List	get all |digraph|s
-digraph_set({chars}, {digraph})	Boolean	register |digraph|
-digraph_setlist({digraphlist})	Boolean	register multiple |digraph|s
+digraph_set({chars}, {digraph})	Bool	register |digraph|
+digraph_setlist({digraphlist})	Bool	register multiple |digraph|s
 echoraw({expr})			none	output {expr} as-is
 empty({expr})			Number	|TRUE| if {expr} is empty
 environ()			Dict	return environment variables
@@ -228,10 +230,13 @@ getcharmod()			Number	modifiers for the last typed character
 getcharpos({expr})		List	position of cursor, mark, etc.
 getcharsearch()			Dict	last character search
 getcharstr([{expr}])		String	get one character from the user
+getcmdcomplpat()		String	return the completion pattern of the
+					current command-line completion
 getcmdcompltype()		String	return the type of the current
 					command-line completion
-getcmdline()			String	return the current command-line
+getcmdline()			String	return the current command-line input
 getcmdpos()			Number	return cursor position in command-line
+getcmdprompt()			String	return the current command-line prompt
 getcmdscreenpos()		Number	return cursor screen position in
 					command-line
 getcmdtype()			String	return current command-line type
@@ -277,7 +282,7 @@ gettabvar({nr}, {varname} [, {def}])
 gettabwinvar({tabnr}, {winnr}, {name} [, {def}])
 				any	{name} in {winnr} in tab page {tabnr}
 gettagstack([{nr}])		Dict	get the tag stack of window {nr}
-gettext({text})			String	lookup translation of {text}
+gettext({text} [, {package}])	String	lookup translation of {text}
 getwininfo([{winid}])		List	list of info about each window
 getwinpos([{timeout}])		List	X and Y coord in pixels of Vim window
 getwinposx()			Number	X coord in pixels of the Vim window
@@ -306,6 +311,7 @@ hlget([{name} [, {resolve}]])	List	get highlight group attributes
 hlset({list})			Number	set highlight group attributes
 hostname()			String	name of the machine Vim is running on
 iconv({expr}, {from}, {to})	String	convert encoding of {expr}
+id({item})			String	get unique identity string of item
 indent({lnum})			Number	indent of line {lnum}
 index({object}, {expr} [, {start} [, {ic}]])
 				Number	index in {object} where {expr} appears
@@ -429,6 +435,7 @@ popup_menu({what}, {options})	Number	create a popup window used as a menu
 popup_move({id}, {options})	none	set position of popup window {id}
 popup_notification({what}, {options})
 				Number	create a notification popup window
+popup_setbuf({id}, {buf})	Bool	set the buffer for the popup window {id}
 popup_setoptions({id}, {options})
 				none	set options for popup window {id}
 popup_settext({id}, {text})	none	set the text of popup window {id}
@@ -525,9 +532,9 @@ searchpos({pattern} [, {flags} [, {stopline} [, {timeout} [, {skip}]]]])
 server2client({clientid}, {string})
 				Number	send reply string
 serverlist()			String	get a list of available servers
-setbufline({expr}, {lnum}, {text})
+setbufline({buf}, {lnum}, {text})
 				Number	set line {lnum} to {text} in buffer
-					{expr}
+					{buf}
 setbufvar({buf}, {varname}, {val})
 				none	set {varname} in buffer {buf} to {val}
 setcellwidths({list})		none	set character cell width overrides
@@ -1217,6 +1224,16 @@ balloon_split({msg})					*balloon_split()*
 
 		Return type: list<any> or list<string>
 
+bindtextdomain({package}, {path})			*bindtextdomain()*
+		Bind a specific {package} to a {path} so that the
+		|gettext()| function can be used to get language-specific
+		translations for a package.  {path} is the directory name
+		for the translations.  See |package-translation|.
+
+		Returns v:true on success and v:false on failure (out of
+		memory).
+
+		Return type: |vim9-boolean|
 
 blob2list({blob})					*blob2list()*
 		Return a List containing the number value of each byte in Blob
@@ -2518,8 +2535,10 @@ executable({expr})					*executable()*
 		This function checks if an executable with the name {expr}
 		exists.  {expr} must be the name of the program without any
 		arguments.
+
 		executable() uses the value of $PATH and/or the normal
-		searchpath for programs.		*PATHEXT*
+		searchpath for programs.
+							*PATHEXT*
 		On MS-Windows the ".exe", ".bat", etc. can optionally be
 		included.  Then the extensions in $PATHEXT are tried.  Thus if
 		"foo.exe" does not exist, "foo.exe.bat" can be found.  If
@@ -2529,11 +2548,14 @@ executable({expr})					*executable()*
 		then the name is also tried without adding an extension.
 		On MS-Windows it only checks if the file exists and is not a
 		directory, not if it's really executable.
-		On MS-Windows an executable in the same directory as Vim is
-		normally found.  Since this directory is added to $PATH it
-		should also work to execute it |win32-PATH|.  This can be
-		disabled by setting the $NoDefaultCurrentDirectoryInExePath
-		environment variable.  *NoDefaultCurrentDirectoryInExePath*
+		On MS-Windows an executable in the same directory as the Vim
+		executable is always found.  Since this directory is added to
+		$PATH it should also work to execute it |win32-PATH|.
+					*NoDefaultCurrentDirectoryInExePath*
+		On MS-Windows an executable in Vim's current working directory
+		is also normally found, but this can be disabled by setting
+		the $NoDefaultCurrentDirectoryInExePath environment variable.
+
 		The result is a Number:
 			1	exists
 			0	does not exist
@@ -2579,7 +2601,7 @@ execute({command} [, {silent}])					*execute()*
 		Can also be used as a |method|: >
 			GetCommand()->execute()
 <
-		Return type: |Number|
+		Return type: |String|
 
 
 exepath({expr})						*exepath()*
@@ -3563,7 +3585,7 @@ garbagecollect([{atexit}])				*garbagecollect()*
 		Return type: |String|
 
 
-get({list}, {idx} [, {default}])			*get()*
+get({list}, {idx} [, {default}])			*get()* *get()-list*
 		Get item {idx} from |List| {list}.  When this item is not
 		available return {default}.  Return zero when {default} is
 		omitted.
@@ -3572,7 +3594,7 @@ get({list}, {idx} [, {default}])			*get()*
 <
 		Return type: any, depending on {list}
 
-get({blob}, {idx} [, {default}])
+get({blob}, {idx} [, {default}])			*get()-blob*
 		Get byte {idx} from |Blob| {blob}.  When this byte is not
 		available return {default}.  Return -1 when {default} is
 		omitted.
@@ -3581,7 +3603,7 @@ get({blob}, {idx} [, {default}])
 <
 		Return type: |Number|
 
-get({dict}, {key} [, {default}])
+get({dict}, {key} [, {default}])			*get()-dict*
 		Get item with key {key} from |Dictionary| {dict}.  When this
 		item is not available return {default}.  Return zero when
 		{default} is omitted.  Useful example: >
@@ -3593,18 +3615,32 @@ get({dict}, {key} [, {default}])
 <
 		Return type: any, depending on {dict}
 
-get({func}, {what})
-		Get item {what} from Funcref {func}.  Possible values for
+get({func}, {what})					*get()-func*
+		Get item {what} from |Funcref| {func}.  Possible values for
 		{what} are:
-			"name"	The function name
-			"func"	The function
-			"dict"	The dictionary
-			"args"	The list with arguments
+		  "name"    The function name
+		  "func"    The function
+		  "dict"    The dictionary
+		  "args"    The list with arguments
+		  "arity"   A dictionary with information about the number of
+			    arguments accepted by the function (minus the
+			    {arglist}) with the following fields:
+				required    the number of positional arguments
+				optional    the number of optional arguments,
+					    in addition to the required ones
+				varargs     |TRUE| if the function accepts a
+					    variable number of arguments |...|
+
+				Note: There is no error, if the {arglist} of
+				the Funcref contains more arguments than the
+				Funcref expects, it's not validated.
+
 		Returns zero on error.
+
 		Preferably used as a |method|: >
 			myfunc->get(what)
 <
-		Return type: any, depending on {func}
+		Return type: any, depending on {func} and {what}
 
 							*getbufinfo()*
 getbufinfo([{buf}])
@@ -3939,27 +3975,37 @@ getcharstr([{expr}])					*getcharstr()*
 
 		Return type: |String|
 
+getcmdcomplpat()					*getcmdcomplpat()*
+		Return completion pattern of the current command-line.
+		Only works when the command line is being edited, thus
+		requires use of |c_CTRL-\_e| or |c_CTRL-R_=|.
+		Also see |getcmdtype()|, |setcmdpos()|, |getcmdline()|,
+		|getcmdprompt()|, |getcmdcompltype()| and |setcmdline()|.
+		Returns an empty string when completion is not defined.
+
+		Return type: |String|
+
 
 getcmdcompltype()					*getcmdcompltype()*
 		Return the type of the current command-line completion.
 		Only works when the command line is being edited, thus
 		requires use of |c_CTRL-\_e| or |c_CTRL-R_=|.
 		See |:command-completion| for the return string.
-		Also see |getcmdtype()|, |setcmdpos()|, |getcmdline()| and
-		|setcmdline()|.
+		Also see |getcmdtype()|, |setcmdpos()|, |getcmdline()|,
+		|getcmdprompt()|, |getcmdcomplpat()| and |setcmdline()|.
 		Returns an empty string when completion is not defined.
 
 		Return type: |String|
 
 
 getcmdline()						*getcmdline()*
-		Return the current command-line.  Only works when the command
-		line is being edited, thus requires use of |c_CTRL-\_e| or
-		|c_CTRL-R_=|.
+		Return the current command-line input.  Only works when the
+		command line is being edited, thus requires use of
+		|c_CTRL-\_e| or |c_CTRL-R_=|.
 		Example: >
 			:cmap <F7> <C-\>eescape(getcmdline(), ' \')<CR>
-<		Also see |getcmdtype()|, |getcmdpos()|, |setcmdpos()| and
-		|setcmdline()|.
+<		Also see |getcmdtype()|, |getcmdpos()|, |setcmdpos()|,
+		|getcmdprompt()| and |setcmdline()|.
 		Returns an empty string when entering a password or using
 		|inputsecret()|.
 
@@ -3972,10 +4018,21 @@ getcmdpos()						*getcmdpos()*
 		Only works when editing the command line, thus requires use of
 		|c_CTRL-\_e| or |c_CTRL-R_=| or an expression mapping.
 		Returns 0 otherwise.
-		Also see |getcmdtype()|, |setcmdpos()|, |getcmdline()| and
-		|setcmdline()|.
+		Also see |getcmdtype()|, |setcmdpos()|, |getcmdline()|,
+		|getcmdprompt()| and |setcmdline()|.
 
 		Return type: |Number|
+
+
+getcmdprompt()						*getcmdprompt()*
+		Return the current command-line prompt when using functions
+		like |input()| or |confirm()|.
+		Only works when the command line is being edited, thus
+		requires use of |c_CTRL-\_e| or |c_CTRL-R_=|.
+		Also see |getcmdtype()|, |getcmdline()|, |getcmdpos()|,
+		|setcmdpos()| and |setcmdline()|.
+
+		Return type: |String|
 
 
 getcmdscreenpos()					*getcmdscreenpos()*
@@ -4034,8 +4091,9 @@ getcompletion({pat}, {type} [, {filtered}])		*getcompletion()*
 		cscope		|:cscope| suboptions
 		custom,{func}	custom completion, defined via {func}
 		customlist,{func} custom completion, defined via {func}
-		diff_buffer     |:diffget| and |:diffput| completion
+		diff_buffer	|:diffget| and |:diffput| completion
 		dir		directory names
+		dir_in_path	directory names in |'cdpath'|
 		environment	environment variable names
 		event		autocommand events
 		expression	Vim expression
@@ -4057,6 +4115,7 @@ getcompletion({pat}, {type} [, {filtered}])		*getcompletion()*
 		runtime		|:runtime| completion
 		scriptnames	sourced script names |:scriptnames|
 		shellcmd	Shell command
+		shellcmdline	Shell command line with filename arguments
 		sign		|:sign| suboptions
 		syntax		syntax file names |'syntax'|
 		syntime		|:syntime| suboptions
@@ -4774,6 +4833,8 @@ getregion({pos1}, {pos2} [, {opts}])			*getregion()*
 <
 		Can also be used as a |method|: >
 			getpos('.')->getregion(getpos("'a"))
+<
+		Return type: list<string>
 
 <
 getregionpos({pos1}, {pos2} [, {opts}])            *getregionpos()*
@@ -4811,7 +4872,7 @@ getregionpos({pos1}, {pos2} [, {opts}])            *getregionpos()*
 		Can also be used as a |method|: >
 			getpos('.')->getregionpos(getpos("'a"))
 <
-		Return type: list<string>
+		Return type: list<list<list<number>>>
 
 
 getregtype([{regname}])					*getregtype()*
@@ -4977,16 +5038,20 @@ gettagstack([{winnr}])					*gettagstack()*
 		Return type: dict<any>
 
 
-gettext({text})						*gettext()*
+gettext({text} [, {package}])				*gettext()*
 		Translate String {text} if possible.
-		This is mainly for use in the distributed Vim scripts.  When
-		generating message translations the {text} is extracted by
-		xgettext, the translator can add the translated message in the
-		.po file and Vim will lookup the translation when gettext() is
-		called.
+		This is intended for use in Vim scripts.  When generating
+		message translations the {text} is extracted by `xgettext`,
+		the translator can add translated messages into the .po file
+		and Vim will lookup the translation when gettext() is called.
 		For {text} double quoted strings are preferred, because
-		xgettext does not understand escaping in single quoted
-		strings.
+		`xgettext` does not support single quoted escaped text.
+
+		When the {package} is specified, the translation is looked up
+		for that specific package.  This is mainly required for
+		third-party Vim scripts.  You need to specify a path to the
+		translations with the |bindtextdomain()| function before
+		using the gettext() function.
 
 		Return type: |String|
 
@@ -5586,6 +5651,34 @@ iconv({string}, {from}, {to})				*iconv()*
 
 		Can also be used as a |method|: >
 			GetText()->iconv('latin1', 'utf-8')
+<
+		Return type: |String|
+
+
+id({item})							    *id()*
+		The result is a unique String associated with the {item} and
+		not with the {item}'s contents. It is only valid while the
+		{item} exists and is referenced. It is valid only in the
+		instance of vim that produces the result. The whole idea is
+		that `id({item})` does not change if the contents of {item}
+		changes. This is useful as a `key` for creating an identity
+		dictionary, rather than one based on equals.
+
+		This operation does not reference {item} and there is no
+		function to convert the `id` to the {item}. It may be useful to
+		have a map of `id` to {item}. The following >
+		    var referenceMap: dict<any>
+		    var id = item->id()
+		    referenceMap[id] = item
+<		prevents {item} from being garbage collected and provides a
+		way to get the {item} from the `id`.
+
+		{item} may be a List, Dictionary, Object, Job, Channel or
+		Blob. If the item is not a permitted type, or it is a null
+		value, then an empty String is returned.
+
+		Can also be used as a |method|: >
+			GetItem()->id()
 <
 		Return type: |String|
 
@@ -6883,10 +6976,10 @@ matchadd({group}, {pattern} [, {priority} [, {id} [, {dict}]]])
 matchaddpos({group}, {pos} [, {priority} [, {id} [, {dict}]]])
 		Same as |matchadd()|, but requires a list of positions {pos}
 		instead of a pattern. This command is faster than |matchadd()|
-		because it does not require to handle regular expressions and
-		sets buffer line boundaries to redraw screen. It is supposed
-		to be used when fast match additions and deletions are
-		required, for example to highlight matching parentheses.
+		because it does not handle regular expressions and it sets
+		buffer line boundaries to redraw screen. It is supposed to be
+		used when fast match additions and deletions are required, for
+		example to highlight matching parentheses.
 
 		{pos} is a list of positions.  Each position can be one of
 		these:
@@ -8078,7 +8171,7 @@ pyxeval({expr})						*pyxeval()*
 		See also: |pyeval()|, |py3eval()|
 
 		Can also be used as a |method|: >
-	<		GetExpr()->pyxeval()
+			GetExpr()->pyxeval()
 <
 		Return type: any, depending on {expr}
 
@@ -8436,10 +8529,10 @@ remote_expr({server}, {string} [, {idvar} [, {timeout}]])
 		string, also see |{server}|.
 
 		The string is sent as an expression and the result is returned
-		after evaluation.  The result must be a String or a |List|.  A
-		|List| is turned into a String by joining the items with a
-		line break in between (not at the end), like with join(expr,
-		"\n").
+		after evaluation.  The result must be a String or a |List|
+		other types will be converted to String.  A |List| is turned
+		into a String by joining the items with a line break in
+		between (not at the end), like with join(expr, "\n").
 
 		If {idvar} is present and not empty, it is taken as the name
 		of a variable and a {serverid} for later use with
@@ -8895,6 +8988,9 @@ search({pattern} [, {flags} [, {stopline} [, {timeout} [, {skip}]]]])
 		{timeout} is 500 the search stops after half a second.
 		The value must not be negative.  A zero value is like not
 		giving the argument.
+
+		Note: the timeout is only considered when searching, not
+		while evaluating the {skip} expression.
 		{only available when compiled with the |+reltime| feature}
 
 		If the {skip} expression is given it is evaluated with the
@@ -9486,7 +9582,8 @@ setline({lnum}, {text})					*setline()*
 		Set line {lnum} of the current buffer to {text}.  To insert
 		lines use |append()|. To set lines in another buffer use
 		|setbufline()|.
-		Any text properties in {lnum} are cleared |text-prop-cleared|.
+		Any text properties in {lnum} are cleared.  See
+		|text-prop-cleared|
 
 		{lnum} is used like with |getline()|.
 		When {lnum} is just below the last line the {text} will be
@@ -10270,8 +10367,8 @@ spellsuggest({word} [, {max} [, {capital}]])		*spellsuggest()*
 
 split({string} [, {pattern} [, {keepempty}]])			*split()*
 		Make a |List| out of {string}.  When {pattern} is omitted or
-		empty each white-separated sequence of characters becomes an
-		item.
+		empty each white space separated sequence of characters
+		becomes an item.
 		Otherwise the string is split where {pattern} matches,
 		removing the matched characters. 'ignorecase' is not used
 		here, add \c to ignore case. |/\c|
@@ -11039,7 +11136,7 @@ synconcealed({lnum}, {col})				*synconcealed()*
 		Note: Doesn't consider |matchadd()| highlighting items,
 		since syntax and matching highlighting are two different
 		mechanisms |syntax-vs-match|.
-<
+
 		Return type: list<any>
 
 

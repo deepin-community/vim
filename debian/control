@@ -4,7 +4,7 @@ Priority: optional
 Maintainer: Debian Vim Maintainers <team+vim@tracker.debian.org>
 Uploaders:
  James McCoy <jamessan@debian.org>,
-Standards-Version: 4.6.2
+Standards-Version: 4.7.0
 Rules-Requires-Root: no
 Build-Depends:
  autoconf,
@@ -22,6 +22,7 @@ Build-Depends:
  libncurses-dev,
 # Needed to run libvterm's tests
  libtool-bin <!nocheck>,
+ locales-all <!nocheck>,
  lua5.1,
  ncurses-term <!nocheck>,
  procps <!nocheck>,

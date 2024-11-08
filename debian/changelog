@@ -1,3 +1,56 @@
+vim (2:9.1.0777-1) unstable; urgency=medium
+
+  * Merge upstream patch v9.1.0777
+    + Security fixes:
+      - 9.1.0764: Fix use-after-free when closing a buffer in a BufWinLeave
+        autocmd, CVE-2024-47814
+  * Make autopkgtests validate the language bindings. The previous
+    autopkgtests ran the entire upstream test suite whose flakiness made it
+    useless as a marker for whether a package update broke Vim. Since the
+    language bindings are the most likely to be affected by package updates,
+    just test those in autopkgtests and remove the "flaky" restriction.
+  * Declare compliance with Policy 4.7.0, no changes required
+
+ -- James McCoy <jamessan@debian.org>  Sun, 13 Oct 2024 12:17:49 -0400
+
+vim (2:9.1.0709-2) unstable; urgency=medium
+
+  * Build with -O1 on s390x to workaround #1082125
+
+ -- James McCoy <jamessan@debian.org>  Sat, 21 Sep 2024 11:03:13 -0400
+
+vim (2:9.1.0709-1) unstable; urgency=medium
+
+  * Merge upstream patch v9.1.0709
+    + Security fixes:
+      - 9.1.0707: Fix possibility of invalid cursor position, CVE-2024-45306
+    + 9.1.0706: Fix test_gettext tests when building in a shadow directory
+    + 9.1.0709: Fix lookup of GUIEnter autocmd name in Turkish locale (Closes:
+      #1074174)
+  * Build-Depend on locales-all package to test new gettext() vimscript function
+  * Delete runtime/doc/tags-* (language specific tags) during clean
+
+ -- James McCoy <jamessan@debian.org>  Tue, 03 Sep 2024 10:30:28 -0400
+
+vim (2:9.1.0698-1) unstable; urgency=medium
+
+  * Merge upstream tag v9.1.0698
+    + Security fixes:
+      - 9.1.0647: Fix use-after-free in tagstack_clear_entry(), CVE-2024-41957
+      - 9.1.0648: Fix double free in dialog_changed(), CVE-2024-41965
+      - 9.1.0678: Fix use-after-free in alist_add(), CVE-2024-43374
+      - 9.1.0689: Fix buffer-overflow in do_search() when 'rightleft' is set,
+        CVE-2024-43790
+      - 9.1.0697: Fix heap-buffer-overflow in ins_typebuf(), CVE-2024-43802
+    + 9.1.0568: Add support for completing paths from 'cdpath' in :cd (Closes:
+      #509940)
+  * Clarify defaults.vim instructions in system vimrc when wanting to source
+    defaults.vim to build on top of its settings.
+  * Adjust make parameter used to specify vim binary, since upstream changed
+    the expected variable name in multiple makefiles
+
+ -- James McCoy <jamessan@debian.org>  Wed, 28 Aug 2024 06:41:08 -0400
+
 vim (2:9.1.0496-1) unstable; urgency=medium
 
   * Merge upstream tag v9.1.0496

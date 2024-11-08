@@ -3912,7 +3912,7 @@ vim_rename(char_u *from, char_u *to)
 
 /*
  * Create the new file with same permissions as the original.
- * Return -1 for failure, 0 for success.
+ * Return FAIL for failure, OK for success.
  */
     int
 vim_copyfile(char_u *from, char_u *to)
@@ -3936,7 +3936,7 @@ vim_copyfile(char_u *from, char_u *to)
     ret = mch_lstat((char *)from, &st);
     if (ret >= 0 && S_ISLNK(st.st_mode))
     {
-        ret = FAIL;
+	ret = -1;
 
 	len = readlink((char *)from, linkbuf, MAXPATHL);
 	if (len > 0)
@@ -5570,6 +5570,8 @@ match_file_list(char_u *list, char_u *sfname, char_u *ffname)
  * allow_dirs, otherwise FALSE is put there -- webb.
  * Handle backslashes before special characters, like "\*" and "\ ".
  *
+ * no_bslash only makes a difference, when BACKSLASH_IN_FILENAME is defined
+ *
  * Returns NULL when out of memory.
  */
     char_u *
@@ -5714,6 +5716,8 @@ file_pat_to_reg_pat(
 				)
 			    *allow_dirs = TRUE;
 			reg_pat[i++] = '\\';
+			if (enc_dbcs != 0 && (*mb_ptr2len)(p) > 1)
+			    reg_pat[i++] = *p++;
 			reg_pat[i++] = *p;
 		    }
 		break;

@@ -9,6 +9,11 @@ include /usr/share/dpkg/default.mk
 
 BUILDER = team+vim@tracker.debian.org
 
+# Work around #1082125
+ifeq (s390x,$(DEB_HOST_ARCH))
+  CFLAGS += -O1
+endif
+
 MAKETEST = no
 ifeq ($(DEB_HOST_GNU_TYPE),$(DEB_BUILD_GNU_TYPE))
   MAKETEST = yes
@@ -194,7 +199,7 @@ override_dh_auto_build-indep:
 	$(MAKE) -f debian/rules build-vim-basic
 	$(MAKE) -C runtime/doc html
 	$(MAKE) -C debian/policy text html
-	$(MAKE) -C src/po vim.pot VIM=$(CURDIR)/src/vim-basic/vim
+	$(MAKE) -C src/po vim.pot VIMPROG=$(CURDIR)/src/vim-basic/vim
 
 override_dh_auto_build-arch: autoconf-stamp
 	$(call foreach-variant, $(MAKE) -f debian/rules build-"$${v}")
@@ -232,7 +237,7 @@ build-vim-%: VARIANT=vim-$*
 build-vim-%: configure-$(VARIANT)
 build-vim-%:
 	$(MAKE) -C src/$(VARIANT)
-	$(MAKE) -C runtime/doc tags VIMEXE=$(CURDIR)/src/$(VARIANT)/vim
+	$(MAKE) -C runtime/doc tags VIMPROG=$(CURDIR)/src/$(VARIANT)/vim
 
 test-vim-%: VARIANT=vim-$*
 test-vim-%:
