@@ -425,7 +425,7 @@ pum_under_menu(int row, int col, int only_redrawing)
  * Returns attributes for every cell, or NULL if all attributes are the same.
  */
     static int *
-pum_compute_text_attrs(char_u *text, hlf_T hlf)
+pum_compute_text_attrs(char_u *text, hlf_T hlf, int user_hlattr)
 {
     int		i;
     size_t	leader_len;
@@ -483,6 +483,9 @@ pum_compute_text_attrs(char_u *text, hlf_T hlf)
 	else if (matched_start && ptr < text + leader_len)
 	    new_attr = highlight_attr[hlf == HLF_PSI ? HLF_PMSI : HLF_PMNI];
 
+	if (user_hlattr > 0)
+	    new_attr = hl_combine_attr(new_attr, user_hlattr);
+
 	char_cells = mb_ptr2cells(ptr);
 	for (i = 0; i < char_cells; i++)
 	    attrs[cell_idx + i] = new_attr;
@@ -527,10 +530,32 @@ pum_screen_puts_with_attrs(
 	else
 #endif
 	    attr = attrs[col - col_start];
-        screen_puts_len(ptr, char_len, row, col, attr);
+	screen_puts_len(ptr, char_len, row, col, attr);
 	col += mb_ptr2cells(ptr);
 	ptr += char_len;
     }
+}
+
+
+    static inline void
+pum_align_order(int *order)
+{
+    int is_default = cia_flags == 0;
+    order[0] = is_default ? CPT_ABBR : cia_flags / 100;
+    order[1] = is_default ? CPT_KIND : (cia_flags / 10) % 10;
+    order[2] = is_default ? CPT_MENU : cia_flags % 10;
+}
+
+    static inline char_u *
+pum_get_item(int index, int type)
+{
+    switch(type)
+    {
+	case CPT_ABBR: return pum_array[index].pum_text;
+	case CPT_KIND: return pum_array[index].pum_kind;
+	case CPT_MENU: return pum_array[index].pum_extra;
+    }
+    return NULL;
 }
 
 /*
@@ -546,19 +571,27 @@ pum_redraw(void)
     hlf_T	*hlfs; // array used for highlights
     hlf_T	hlf;
     int		attr;
-    int		i;
+    int		i, j;
     int		idx;
     char_u	*s;
     char_u	*p = NULL;
-    int		totwidth, width, w;
+    int		totwidth, width, w;  // total-width item-width char-width
     int		thumb_pos = 0;
     int		thumb_height = 1;
-    int		round;
+    int		item_type;
+    int		order[3];
+    int		next_isempty = FALSE;
     int		n;
+    int		items_width_array[3] = { pum_base_width, pum_kind_width,
+							    pum_extra_width };
+    int		basic_width;  // first item width
+    int		last_isabbr = FALSE;
+    int		user_abbr_hlattr, user_kind_hlattr;
+    int		orig_attr = -1;
 
     hlf_T	hlfsNorm[3];
     hlf_T	hlfsSel[3];
-    // "word"
+    // "word"/"abbr"
     hlfsNorm[0] = HLF_PNI;
     hlfsSel[0] = HLF_PSI;
     // "kind"
@@ -618,24 +651,27 @@ pum_redraw(void)
 		screen_putchar(' ', row, pum_col - 1, attr);
 
 	// Display each entry, use two spaces for a Tab.
-	// Do this 3 times:
-	// 0 - main text
-	// 1 - kind
-	// 2 - extra info
+	// Do this 3 times and order from p_cia
 	col = pum_col;
 	totwidth = 0;
-	for (round = 0; round < 3; ++round)
+	pum_align_order(order);
+	basic_width = items_width_array[order[0]];
+	last_isabbr = order[2] == CPT_ABBR;
+	for (j = 0; j < 3; ++j)
 	{
-	    hlf = hlfs[round];
+	    item_type = order[j];
+	    hlf = hlfs[item_type];
 	    attr = highlight_attr[hlf];
+	    orig_attr = attr;
+	    user_abbr_hlattr = pum_array[idx].pum_user_abbr_hlattr;
+	    user_kind_hlattr = pum_array[idx].pum_user_kind_hlattr;
+	    if (item_type == CPT_ABBR && user_abbr_hlattr > 0)
+		attr = hl_combine_attr(attr, user_abbr_hlattr);
+	    if (item_type == CPT_KIND && user_kind_hlattr > 0)
+		attr = hl_combine_attr(attr, user_kind_hlattr);
 	    width = 0;
 	    s = NULL;
-	    switch (round)
-	    {
-		case 0: p = pum_array[idx].pum_text; break;
-		case 1: p = pum_array[idx].pum_kind; break;
-		case 2: p = pum_array[idx].pum_extra; break;
-	    }
+	    p = pum_get_item(idx, item_type);
 	    if (p != NULL)
 		for ( ; ; MB_PTR_ADV(p))
 		{
@@ -647,7 +683,7 @@ pum_redraw(void)
 			// Display the text that fits or comes before a Tab.
 			// First convert it to printable characters.
 			char_u	*st;
-			int	*attrs;
+			int	*attrs = NULL;
 			int	saved = *p;
 
 			if (saved != NUL)
@@ -656,8 +692,9 @@ pum_redraw(void)
 			if (saved != NUL)
 			    *p = saved;
 
-			attrs = pum_compute_text_attrs(st, hlf);
-
+			if (item_type == CPT_ABBR)
+			    attrs = pum_compute_text_attrs(st, hlf,
+							    user_abbr_hlattr);
 #ifdef FEAT_RIGHTLEFT
 			if (pum_rl)
 			{
@@ -739,7 +776,8 @@ pum_redraw(void)
 			    col += width;
 			}
 
-			vim_free(attrs);
+			if (attrs != NULL)
+			    VIM_CLEAR(attrs);
 
 			if (*p != TAB)
 			    break;
@@ -749,13 +787,14 @@ pum_redraw(void)
 			if (pum_rl)
 			{
 			    screen_puts_len((char_u *)"  ", 2, row, col - 1,
-									attr);
+								    attr);
 			    col -= 2;
 			}
 			else
 #endif
 			{
-			    screen_puts_len((char_u *)"  ", 2, row, col, attr);
+			    screen_puts_len((char_u *)"  ", 2, row, col,
+								    attr);
 			    col += 2;
 			}
 			totwidth += 2;
@@ -766,33 +805,35 @@ pum_redraw(void)
 			width += w;
 		}
 
-	    if (round > 0)
-		n = pum_kind_width + 1;
+	    if (j > 0)
+		n = items_width_array[order[1]] + (last_isabbr ? 0 : 1);
 	    else
-		n = 1;
+		n = order[j] == CPT_ABBR ? 1 : 0;
+
+	    if (j + 1 < 3)
+		next_isempty = pum_get_item(idx, order[j + 1]) == NULL;
 
 	    // Stop when there is nothing more to display.
-	    if (round == 2
-		    || (round == 1 && pum_array[idx].pum_extra == NULL)
-		    || (round == 0 && pum_array[idx].pum_kind == NULL
-					  && pum_array[idx].pum_extra == NULL)
-		    || pum_base_width + n >= pum_width)
+	    if (j == 2
+		    || (next_isempty && (j == 1 || (j == 0
+				&& pum_get_item(idx, order[j + 2]) == NULL)))
+		    || basic_width + n >= pum_width)
 		break;
 #ifdef FEAT_RIGHTLEFT
 	    if (pum_rl)
 	    {
-		screen_fill(row, row + 1, pum_col - pum_base_width - n + 1,
-						    col + 1, ' ', ' ', attr);
-		col = pum_col - pum_base_width - n;
+		screen_fill(row, row + 1, pum_col - basic_width - n + 1,
+						    col + 1, ' ', ' ', orig_attr);
+		col = pum_col - basic_width - n;
 	    }
 	    else
 #endif
 	    {
-		screen_fill(row, row + 1, col, pum_col + pum_base_width + n,
-							      ' ', ' ', attr);
-		col = pum_col + pum_base_width + n;
+		screen_fill(row, row + 1, col, pum_col + basic_width + n,
+							      ' ', ' ', orig_attr);
+		col = pum_col + basic_width + n;
 	    }
-	    totwidth = pum_base_width + n;
+	    totwidth = basic_width + n;
 	}
 
 #ifdef FEAT_RIGHTLEFT
@@ -1332,9 +1373,10 @@ pum_set_event_info(dict_T *dict)
     static void
 pum_position_at_mouse(int min_width)
 {
-    if (Rows - mouse_row > pum_size)
+    if (Rows - mouse_row > pum_size || Rows - mouse_row > mouse_row)
     {
-	// Enough space below the mouse row.
+	// Enough space below the mouse row,
+	// or there is more space below the mouse row than above.
 	pum_row = mouse_row + 1;
 	if (pum_height > Rows - pum_row)
 	    pum_height = Rows - pum_row;
@@ -1633,7 +1675,7 @@ pum_select_mouse_pos(void)
 {
     int idx = mouse_row - pum_row;
 
-    if (idx < 0 || idx >= pum_size)
+    if (idx < 0 || idx >= pum_height)
 	pum_selected = -1;
     else if (*pum_array[idx].pum_text != NUL)
 	pum_selected = idx;
