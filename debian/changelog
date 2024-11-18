@@ -1,3 +1,9 @@
+vim (2:9.1.0777-1deepin1) unstable; urgency=medium
+
+  * Set NoDisplay=true for vim.desktop
+
+ -- Tianyu Chen <sweetyfish@deepin.org>  Mon, 18 Nov 2024 15:23:32 +0800
+
 vim (2:9.1.0777-1) unstable; urgency=medium
 
   * Merge upstream patch v9.1.0777
