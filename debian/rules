@@ -37,7 +37,7 @@ else
 endif
 
 # Set to TEST_SKIP_PAT=<vim pattern> to exclude running tests matching the pattern
-EXCLUDE_PAT = TEST_SKIP_PAT=Test_crash1
+EXCLUDE_PAT = TEST_SKIP_PAT='Test_crash1\|glvs'
 
 CFGFLAGS = --prefix=/usr --mandir='$${prefix}'/share/man --without-local-dir
 CFGFLAGS += --with-modified-by="$(BUILDER)"

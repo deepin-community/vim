@@ -50,6 +50,7 @@ cmdline_fuzzy_completion_supported(expand_T *xp)
 	    && xp->xp_context != EXPAND_FILES
 	    && xp->xp_context != EXPAND_FILES_IN_PATH
 	    && xp->xp_context != EXPAND_FILETYPE
+	    && xp->xp_context != EXPAND_FINDFUNC
 	    && xp->xp_context != EXPAND_HELP
 	    && xp->xp_context != EXPAND_KEYMAP
 	    && xp->xp_context != EXPAND_OLD_SETTING
@@ -372,10 +373,7 @@ cmdline_pum_create(
 	columns += vim_strsize(showmatches_gettail(matches[0]));
 	columns -= vim_strsize(matches[0]);
     }
-    if (columns >= compl_startcol)
-	compl_startcol = 0;
-    else
-	compl_startcol -= columns;
+    compl_startcol = MAX(0, compl_startcol - columns);
 
     // no default selection
     compl_selected = -1;
@@ -734,94 +732,85 @@ win_redr_status_matches(
  * in "xp->xp_selected"
  */
     static char_u *
-get_next_or_prev_match(
-	int		mode,
-	expand_T	*xp)
+get_next_or_prev_match(int mode, expand_T *xp)
 {
-    int findex = xp->xp_selected;
-    int ht;
+    int	    findex = xp->xp_selected;
+    int	    ht;
 
+    // When no matches found, return NULL
     if (xp->xp_numfiles <= 0)
 	return NULL;
 
     if (mode == WILD_PREV)
     {
+	// Select the last entry if at original text
 	if (findex == -1)
 	    findex = xp->xp_numfiles;
+	// Otherwise select the previous entry
 	--findex;
     }
     else if (mode == WILD_NEXT)
+    {
+	// Select the next entry
 	++findex;
-    else if (mode == WILD_PAGEUP)
-    {
-	if (findex == 0)
-	    // at the first entry, don't select any entries
-	    findex = -1;
-	else if (findex == -1)
-	    // no entry is selected. select the last entry
-	    findex = xp->xp_numfiles - 1;
-	else
-	{
-	    // go up by the pum height
-	    ht = pum_get_height();
-	    if (ht > 3)
-		ht -= 2;
-	    findex -= ht;
-	    if (findex < 0)
-		// few entries left, select the first entry
-		findex = 0;
-	}
     }
-    else   // mode == WILD_PAGEDOWN
+    else   // WILD_PAGEDOWN or WILD_PAGEUP
     {
-	if (findex == xp->xp_numfiles - 1)
-	    // at the last entry, don't select any entries
-	    findex = -1;
-	else if (findex == -1)
-	    // no entry is selected. select the first entry
-	    findex = 0;
-	else
+	// Get the height of popup menu (used for both PAGEUP and PAGEDOWN)
+	ht = pum_get_height();
+	if (ht > 3)
+	    ht -= 2;
+
+	if (mode == WILD_PAGEUP)
 	{
-	    // go down by the pum height
-	    ht = pum_get_height();
-	    if (ht > 3)
-		ht -= 2;
-	    findex += ht;
-	    if (findex >= xp->xp_numfiles)
-		// few entries left, select the last entry
+	    if (findex == 0)
+		// at the first entry, don't select any entries
+		findex = -1;
+	    else if (findex < 0)
+		// no entry is selected. select the last entry
 		findex = xp->xp_numfiles - 1;
+	    else
+		// go up by the pum height
+		findex = MAX(findex - ht, 0);
+	}
+	else    // mode == WILD_PAGEDOWN
+	{
+	    if (findex >= xp->xp_numfiles - 1)
+		// at the last entry, don't select any entries
+		findex = -1;
+	    else if (findex < 0)
+		// no entry is selected, select the first entry
+		findex = 0;
+	    else
+		// go down by the pum height
+		findex = MIN(findex + ht, xp->xp_numfiles - 1);
 	}
     }
 
-    // When wrapping around, return the original string, set findex to -1.
-    if (findex < 0)
+    // Handle wrapping around
+    if (findex < 0 || findex >= xp->xp_numfiles)
     {
-	if (xp->xp_orig == NULL)
-	    findex = xp->xp_numfiles - 1;
-	else
+	// If original text exists, return to it when wrapping around
+	if (xp->xp_orig != NULL)
 	    findex = -1;
-    }
-    if (findex >= xp->xp_numfiles)
-    {
-	if (xp->xp_orig == NULL)
-	    findex = 0;
 	else
-	    findex = -1;
+	    // Wrap around to opposite end
+	    findex = (findex < 0) ? xp->xp_numfiles - 1 : 0;
     }
+
+    // Display matches on screen
     if (compl_match_array)
     {
 	compl_selected = findex;
 	cmdline_pum_display();
     }
     else if (p_wmnu)
-	win_redr_status_matches(xp, xp->xp_numfiles, xp->xp_files,
-		findex, cmd_showtail);
+	win_redr_status_matches(xp, xp->xp_numfiles, xp->xp_files, findex,
+		cmd_showtail);
+
     xp->xp_selected = findex;
-
-    if (findex == -1)
-	return vim_strsave(xp->xp_orig);
-
-    return vim_strsave(xp->xp_files[findex]);
+    // Return the original text or the selected match
+    return vim_strsave(findex == -1 ? xp->xp_orig : xp->xp_files[findex]);
 }
 
 /*
@@ -1418,7 +1407,8 @@ addstar(
 
 	// For help tags the translation is done in find_help_tags().
 	// For a tag pattern starting with "/" no translation is needed.
-	if (context == EXPAND_HELP
+	if (context == EXPAND_FINDFUNC
+		|| context == EXPAND_HELP
 		|| context == EXPAND_COLORS
 		|| context == EXPAND_COMPILER
 		|| context == EXPAND_OWNSYNTAX
@@ -2138,7 +2128,8 @@ set_context_by_cmdname(
 	case CMD_sfind:
 	case CMD_tabfind:
 	    if (xp->xp_context == EXPAND_FILES)
-		xp->xp_context = EXPAND_FILES_IN_PATH;
+		xp->xp_context = *get_findfunc() != NUL ? EXPAND_FINDFUNC
+							: EXPAND_FILES_IN_PATH;
 	    break;
 	case CMD_cd:
 	case CMD_chdir:
@@ -2329,6 +2320,7 @@ set_context_by_cmdname(
 	    // FALLTHROUGH
 	case CMD_buffer:
 	case CMD_sbuffer:
+	case CMD_pbuffer:
 	case CMD_checktime:
 	    xp->xp_context = EXPAND_BUFFERS;
 	    xp->xp_pattern = arg;
@@ -2819,7 +2811,7 @@ expand_files_and_dirs(
 {
     int		free_pat = FALSE;
     int		i;
-    int		ret;
+    int		ret = FAIL;
 
     // for ":set path=" and ":set tags=" halve backslashes for escaped
     // space
@@ -2850,19 +2842,28 @@ expand_files_and_dirs(
 	    }
     }
 
-    if (xp->xp_context == EXPAND_FILES)
-	flags |= EW_FILE;
-    else if (xp->xp_context == EXPAND_FILES_IN_PATH)
-	flags |= (EW_FILE | EW_PATH);
-    else if (xp->xp_context == EXPAND_DIRS_IN_CDPATH)
-	flags = (flags | EW_DIR | EW_CDPATH) & ~EW_FILE;
+    if (xp->xp_context == EXPAND_FINDFUNC)
+    {
+#ifdef FEAT_EVAL
+	ret = expand_findfunc(pat, matches, numMatches);
+#endif
+    }
     else
-	flags = (flags | EW_DIR) & ~EW_FILE;
-    if (options & WILD_ICASE)
-	flags |= EW_ICASE;
+    {
+	if (xp->xp_context == EXPAND_FILES)
+	    flags |= EW_FILE;
+	else if (xp->xp_context == EXPAND_FILES_IN_PATH)
+	    flags |= (EW_FILE | EW_PATH);
+	else if (xp->xp_context == EXPAND_DIRS_IN_CDPATH)
+	    flags = (flags | EW_DIR | EW_CDPATH) & ~EW_FILE;
+	else
+	    flags = (flags | EW_DIR) & ~EW_FILE;
+	if (options & WILD_ICASE)
+	    flags |= EW_ICASE;
 
-    // Expand wildcards, supporting %:h and the like.
-    ret = expand_wildcards_eval(&pat, numMatches, matches, flags);
+	// Expand wildcards, supporting %:h and the like.
+	ret = expand_wildcards_eval(&pat, numMatches, matches, flags);
+    }
     if (free_pat)
 	vim_free(pat);
 #ifdef BACKSLASH_IN_FILENAME
@@ -3110,6 +3111,7 @@ ExpandFromContext(
     if (xp->xp_context == EXPAND_FILES
 	    || xp->xp_context == EXPAND_DIRECTORIES
 	    || xp->xp_context == EXPAND_FILES_IN_PATH
+	    || xp->xp_context == EXPAND_FINDFUNC
 	    || xp->xp_context == EXPAND_DIRS_IN_CDPATH)
 	return expand_files_and_dirs(xp, pat, matches, numMatches, flags,
 								options);

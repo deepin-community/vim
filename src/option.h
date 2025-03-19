@@ -530,6 +530,8 @@ EXTERN unsigned	cot_flags;	// flags from 'completeopt'
 #define COT_NOINSERT	    0x040   // FALSE: select & insert, TRUE: noinsert
 #define COT_NOSELECT	    0x080   // FALSE: select & insert, TRUE: noselect
 #define COT_FUZZY	    0x100   // TRUE: fuzzy match enabled
+#define COT_NOSORT	    0x200   // TRUE: fuzzy match without qsort score
+#define COT_PREINSERT	    0x400   // TRUE: preinsert
 #ifdef BACKSLASH_IN_FILENAME
 EXTERN char_u	*p_csl;		// 'completeslash'
 #endif
@@ -596,6 +598,9 @@ EXTERN char_u	*p_ffs;		// 'fileformats'
 EXTERN int	p_fic;		// 'fileignorecase'
 EXTERN char_u	*p_ft;		// 'filetype'
 EXTERN char_u	*p_fcs;		// 'fillchar'
+#ifdef FEAT_EVAL
+EXTERN char_u	*p_ffu;		// 'findfunc'
+#endif
 EXTERN int	p_fixeol;	// 'fixendofline'
 #ifdef FEAT_FOLDING
 EXTERN char_u	*p_fcl;		// 'foldclose'
@@ -772,6 +777,7 @@ EXTERN long	p_mmt;		// 'maxmemtot'
 #ifdef FEAT_MENU
 EXTERN long	p_mis;		// 'menuitems'
 #endif
+EXTERN char_u	*p_mopt;	// 'messagesopt'
 #ifdef FEAT_SPELL
 EXTERN char_u	*p_msm;		// 'mkspellmem'
 #endif
@@ -1172,6 +1178,7 @@ enum
 #ifdef FEAT_EVAL
     , BV_BEXPR
     , BV_FEX
+    , BV_FFU
 #endif
     , BV_FF
     , BV_FLP
@@ -1281,6 +1288,7 @@ enum
 #ifdef FEAT_DIFF
     , WV_DIFF
 #endif
+    , WV_EIW
 #ifdef FEAT_FOLDING
     , WV_FDC
     , WV_FEN

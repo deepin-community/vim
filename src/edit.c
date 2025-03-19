@@ -690,8 +690,11 @@ edit(
 			&& stop_arrow() == OK)
 		{
 		    ins_compl_delete();
-		    ins_compl_insert(FALSE);
+		    ins_compl_insert(FALSE, FALSE);
 		}
+		// Delete preinserted text when typing special chars
+		else if (IS_WHITE_NL_OR_NUL(c) && ins_compl_preinsert_effect())
+		    ins_compl_delete();
 	    }
 	}
 
@@ -1625,7 +1628,8 @@ decodeModifyOtherKeys(int c)
     if (typebuf.tb_len >= 4 && (c == CSI || (c == ESC && *p == '[')))
     {
 	idx = (*p == '[');
-	if (p[idx] == '2' && p[idx + 1] == '7' && p[idx + 2] == ';')
+	if (p[idx] == '2' && p[idx + 1] == '7' && p[idx + 2] == ';' &&
+		kitty_protocol_state != KKPS_ENABLED)
 	{
 	    form = 1;
 	    idx += 3;
@@ -1640,9 +1644,10 @@ decodeModifyOtherKeys(int c)
 		break;
 	    ++idx;
 	}
+	int kitty_no_mods = argidx == 0 && kitty_protocol_state == KKPS_ENABLED;
 	if (idx < typebuf.tb_len
 		&& p[idx] == (form == 1 ? '~' : 'u')
-		&& argidx == 1)
+		&& (argidx == 1 || kitty_no_mods))
 	{
 	    // Match, consume the code.
 	    typebuf.tb_off += idx + 1;
@@ -1652,7 +1657,7 @@ decodeModifyOtherKeys(int c)
 		typebuf_was_filled = FALSE;
 #endif
 
-	    mod_mask = decode_modifiers(arg[!form]);
+	    mod_mask = kitty_no_mods ? 0 : decode_modifiers(arg[!form]);
 	    c = merge_modifyOtherKeys(arg[form], &mod_mask);
 	}
     }
