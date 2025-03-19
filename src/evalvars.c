@@ -161,6 +161,7 @@ static struct vimvar
     {VV_NAME("t_typealias",	 VAR_NUMBER), NULL, VV_RO},
     {VV_NAME("t_enum",		 VAR_NUMBER), NULL, VV_RO},
     {VV_NAME("t_enumvalue",	 VAR_NUMBER), NULL, VV_RO},
+    {VV_NAME("stacktrace",	 VAR_LIST), &t_list_dict_any, VV_RO},
 };
 
 // shorthand
@@ -3134,7 +3135,7 @@ eval_variable(
 			// assumed.
 			rettv->vval.v_string = vim_strsave(name);
 		    else
-			rettv->vval.v_string = vim_strsave(ufunc->uf_name);
+			rettv->vval.v_string = vim_strnsave(ufunc->uf_name, ufunc->uf_namelen);
 		    if (rettv->vval.v_string != NULL)
 			func_ref(ufunc->uf_name);
 		}

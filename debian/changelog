@@ -1,8 +1,61 @@
-vim (2:9.1.0777-1deepin1) unstable; urgency=medium
+vim (2:9.1.1113-1deepin1) unstable; urgency=medium
 
   * Set NoDisplay=true for vim.desktop
 
- -- Tianyu Chen <sweetyfish@deepin.org>  Mon, 18 Nov 2024 15:23:32 +0800
+ -- Tianyu Chen <sweetyfish@deepin.org>  Wed, 19 Mar 2025 09:21:18 +0800
+
+vim (2:9.1.1113-1) unstable; urgency=medium
+
+  [ James McCoy ]
+  * Merge upstream tag v9.1.1113
+    + Security fixes:
+      - 9.1.1003: heap-buffer overflow with visual mode when using :all,
+        CVE-2025-22134
+      - 9.1.1043: segfault in win_line(), CVE-2025-24014
+      - 9.1.1097: crash when using --log with non-existent path, CVE-2025-1215
+
+  [ Andrea Pappacoda ]
+  * Drop backspace and history from debian.vim (Closes: #1095155)
+
+ -- James McCoy <jamessan@debian.org>  Sat, 15 Feb 2025 20:43:27 -0500
+
+vim (2:9.1.0967-2) unstable; urgency=medium
+
+  * Revert "patch 9.1.0949: popups inconsistently shifted to the left",
+    since it breaks vim-youcompleteme's autopkgtests. (Closes: #1091729)
+
+ -- James McCoy <jamessan@debian.org>  Fri, 10 Jan 2025 06:30:59 -0500
+
+vim (2:9.1.0967-1) unstable; urgency=medium
+
+  * Merge upstream tag v9.1.0967
+    + 9.1.0862: Change default for 'wildmenu' to true
+    + 9.1.0895: Change default for 'history' to 200
+    + 9.1.0899: Change default for 'backspace' to "indent,eol,start"
+    + 9.1.0915: Change default GTK font size from 10 to 12
+    + Update German manpage and fix formatting issues (Closes: #1087431)
+  * Revert "Skip Test_display_registers after 9.1.0852", fixed upstream
+  * Remove tags-* / tags.ref from debian/clean, since the upstream Makefile
+    now handles this cleanup.
+
+ -- James McCoy <jamessan@debian.org>  Sat, 28 Dec 2024 23:18:43 -0500
+
+vim (2:9.1.0861-1) unstable; urgency=medium
+
+  [ James McCoy ]
+  * Merge upstream tag v9.1.0861
+  * salsa: Re-enable the crossbuild job
+
+  [ Kirill Rekhov ]
+  * d/copyright: update links (http -> https)
+  * d/copyright: fix superfluous-file-pattern warning
+
+  [ James McCoy ]
+  * Skip GetLatestVimScripts tests since they require network access
+  * Skip Test_display_registers after 9.1.0852 since it now fails when run
+    without a GUI environment available
+
+ -- James McCoy <jamessan@debian.org>  Wed, 13 Nov 2024 06:33:02 -0500
 
 vim (2:9.1.0777-1) unstable; urgency=medium
 

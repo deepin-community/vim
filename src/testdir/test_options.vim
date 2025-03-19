@@ -4,6 +4,8 @@ source shared.vim
 source check.vim
 source view_util.vim
 
+scriptencoding utf-8
+
 func Test_whichwrap()
   set whichwrap=b,s
   call assert_equal('b,s', &whichwrap)
@@ -484,7 +486,7 @@ func Test_set_completion_string_values()
   " but don't exhaustively validate their results.
   call assert_equal('single', getcompletion('set ambw=', 'cmdline')[0])
   call assert_match('light\|dark', getcompletion('set bg=', 'cmdline')[1])
-  call assert_equal('indent', getcompletion('set backspace=', 'cmdline')[0])
+  call assert_equal('indent,eol,start', getcompletion('set backspace=', 'cmdline')[0])
   call assert_equal('yes', getcompletion('set backupcopy=', 'cmdline')[1])
   call assert_equal('backspace', getcompletion('set belloff=', 'cmdline')[1])
   call assert_equal('min:', getcompletion('set briopt=', 'cmdline')[1])
@@ -575,6 +577,7 @@ func Test_set_completion_string_values()
 
   " Other string options that queries the system rather than fixed enum names
   call assert_equal(['all', 'BufAdd'], getcompletion('set eventignore=', 'cmdline')[0:1])
+  call assert_equal(['WinLeave', 'WinResized', 'WinScrolled'], getcompletion('set eiw=', 'cmdline')[-3:-1])
   call assert_equal('latin1', getcompletion('set fileencodings=', 'cmdline')[1])
   call assert_equal('top', getcompletion('set printoptions=', 'cmdline')[0])
   call assert_equal('SpecialKey', getcompletion('set wincolor=', 'cmdline')[0])
@@ -594,6 +597,8 @@ func Test_set_completion_string_values()
   call assert_equal([&keyprotocol], getcompletion('set keyprotocol=', 'cmdline'))
   call feedkeys(":set keyprotocol+=someterm:m\<Tab>\<C-B>\"\<CR>", 'xt')
   call assert_equal('"set keyprotocol+=someterm:mok2', @:)
+  call feedkeys(":set keyprotocol+=someterm:k\<Tab>\<C-B>\"\<CR>", 'xt')
+  call assert_equal('"set keyprotocol+=someterm:kitty', @:)
   set keyprotocol&
 
   " previewpopup / completepopup
@@ -630,6 +635,10 @@ func Test_set_completion_string_values()
   " Test completion in middle of the line
   call feedkeys(":set hl=8b i\<Left>\<Left>\<Tab>\<C-B>\"\<CR>", 'xt')
   call assert_equal("\"set hl=8bi i", @:)
+
+  " messagesopt
+  call assert_equal(['history:', 'hit-enter', 'wait:'],
+        \ getcompletion('set messagesopt+=', 'cmdline')->sort())
 
   "
   " Test flag lists
@@ -693,6 +702,10 @@ func Test_set_completion_string_values()
   " Test empty option
   set diffopt=
   call assert_equal([], getcompletion('set diffopt-=', 'cmdline'))
+  " Test all possible values
+  call assert_equal(['filler', 'context:', 'iblank', 'icase', 'iwhite', 'iwhiteall', 'iwhiteeol', 'horizontal',
+        \ 'vertical', 'closeoff', 'hiddenoff', 'foldcolumn:', 'followwrap', 'internal', 'indent-heuristic', 'algorithm:', 'linematch:'],
+        \ getcompletion('set diffopt=', 'cmdline'))
   set diffopt&
 
   " Test escaping output
@@ -750,6 +763,9 @@ func Test_set_option_errors()
   call assert_fails('set tabstop=10000', 'E474:')
   call assert_fails('let &tabstop = 10000', 'E474:')
   call assert_fails('set tabstop=5500000000', 'E474:')
+  if has('terminal')
+    call assert_fails('set termwinscroll=-1', 'E487:')
+  endif
   call assert_fails('set textwidth=-1', 'E487:')
   call assert_fails('set timeoutlen=-1', 'E487:')
   call assert_fails('set updatecount=-1', 'E487:')
@@ -1035,15 +1051,6 @@ func Test_set_all_one_column()
   call assert_equal(out_one[0], '--- Options ---')
   let options = out_one[1:]->mapnew({_, line -> line[2:]})
   call assert_equal(sort(copy(options)), options)
-endfunc
-
-func Test_set_values()
-  " opt_test.vim is generated from ../optiondefs.h using gen_opt_test.vim
-  if filereadable('opt_test.vim')
-    source opt_test.vim
-  else
-    throw 'Skipped: opt_test.vim does not exist'
-  endif
 endfunc
 
 func Test_renderoptions()
@@ -1574,7 +1581,7 @@ endfunc
 
 " Test for changing options in a sandbox
 func Test_opt_sandbox()
-  for opt in ['backupdir', 'cdpath', 'exrc']
+  for opt in ['backupdir', 'cdpath', 'exrc', 'findfunc']
     call assert_fails('sandbox set ' .. opt .. '?', 'E48:')
     call assert_fails('sandbox let &' .. opt .. ' = 1', 'E48:')
   endfor
@@ -2264,13 +2271,46 @@ func Test_opt_default()
 endfunc
 
 " Test for the 'cmdheight' option
-func Test_cmdheight()
+func Test_opt_cmdheight()
   %bw!
   let ht = &lines
   set cmdheight=9999
   call assert_equal(1, winheight(0))
   call assert_equal(ht - 1, &cmdheight)
   set cmdheight&
+
+  " The status line should be taken into account.
+  set laststatus=2
+  set cmdheight=9999
+  call assert_equal(ht - 2, &cmdheight)
+  set cmdheight& laststatus&
+
+  " The tabline should be taken into account only non-GUI.
+  set showtabline=2
+  set cmdheight=9999
+  if has('gui_running')
+    call assert_equal(ht - 1, &cmdheight)
+  else
+    call assert_equal(ht - 2, &cmdheight)
+  endif
+  set cmdheight& showtabline&
+
+  " The 'winminheight' should be taken into account.
+  set winheight=3 winminheight=3
+  split
+  set cmdheight=9999
+  call assert_equal(ht - 8, &cmdheight)
+  %bw!
+  set cmdheight& winminheight& winheight&
+
+  " Only the windows in the current tabpage are taken into account.
+  set winheight=3 winminheight=3 showtabline=0
+  split
+  tabnew
+  set cmdheight=9999
+  call assert_equal(ht - 3, &cmdheight)
+  %bw!
+  set cmdheight& winminheight& winheight& showtabline&
 endfunc
 
 " To specify a control character as an option value, '^' can be used
@@ -2460,6 +2500,7 @@ func Test_string_option_revert_on_failure()
         \ ['eadirection', 'hor', 'a123'],
         \ ['encoding', 'utf-8', 'a123'],
         \ ['eventignore', 'TextYankPost', 'a123'],
+        \ ['eventignorewin', 'WinScrolled', 'a123'],
         \ ['fileencoding', 'utf-8', 'a123,'],
         \ ['fileformat', 'mac', 'a123'],
         \ ['fileformats', 'mac', 'a123'],
@@ -2478,6 +2519,7 @@ func Test_string_option_revert_on_failure()
         \ ['lispoptions', 'expr:1', 'a123'],
         \ ['listchars', 'tab:->', 'tab:'],
         \ ['matchpairs', '<:>', '<:'],
+        \ ['messagesopt', 'hit-enter,history:100', 'a123'],
         \ ['mkspellmem', '100000,1000,100', '100000'],
         \ ['mouse', 'nvi', 'z'],
         \ ['mousemodel', 'extend', 'a123'],
@@ -2824,6 +2866,11 @@ func Test_set_missing_options()
   set w300=23
   set w1200=23
   set w9600=23
+endfunc
+
+func Test_default_keyprotocol()
+  " default value of keyprotocol
+  call assert_equal('kitty:kitty,foot:kitty,ghostty:kitty,wezterm:kitty,xterm:mok2', &keyprotocol)
 endfunc
 
 " vim: shiftwidth=2 sts=2 expandtab

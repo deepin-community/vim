@@ -3,6 +3,7 @@ void func_init(void);
 hashtab_T *func_tbl_get(void);
 char_u *make_ufunc_name_readable(char_u *name, char_u *buf, size_t bufsize);
 char_u *get_lambda_name(void);
+size_t get_lambda_name_len(void);
 char_u *register_cfunc(cfunc_T cb, cfunc_free_T cb_free, void *state);
 int get_lambda_tv(char_u **arg, typval_T *rettv, int types_optional, evalarg_T *evalarg);
 char_u *deref_func_name(char_u *name, int *lenp, partial_T **partialp, type_T **type, int no_autoload, int new_function, int *found_var);
@@ -42,7 +43,6 @@ int call_func(char_u *funcname, int len, typval_T *rettv, int argcount_in, typva
 int call_simple_func(char_u *funcname, size_t len, typval_T *rettv);
 char_u *printable_func_name(ufunc_T *fp);
 char_u *trans_function_name(char_u **pp, int *is_global, int skip, int flags);
-char_u *trans_function_name_ext(char_u **pp, int *is_global, int skip, int flags, funcdict_T *fdp, partial_T **partial, type_T **type, ufunc_T **ufunc);
 char_u *get_scriptlocal_funcname(char_u *funcname);
 char_u *alloc_printable_func_name(char_u *fname);
 char_u *save_function_name(char_u **name, int *is_global, int skip, int flags, funcdict_T *fudi);

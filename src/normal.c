@@ -418,6 +418,9 @@ normal_cmd_get_more_chars(
 #ifdef CURSOR_SHAPE
 	    ui_cursor_shape();	// show different cursor shape
 #endif
+#ifdef FEAT_MOUSESHAPE
+	    update_mouseshape(-1);
+#endif
 	}
 	if (lang && curbuf->b_p_iminsert == B_IMODE_LMAP)
 	{
@@ -5515,6 +5518,8 @@ nv_visual(cmdarg_T *cap)
 		update_curswant_force();
 		curwin->w_curswant += resel_VIsual_vcol * cap->count0 - 1;
 		curwin->w_cursor.lnum = lnum;
+		if (*p_sel == 'e')
+		    ++curwin->w_curswant;
 		coladvance(curwin->w_curswant);
 	    }
 	    else
@@ -5759,7 +5764,7 @@ nv_g_home_m_cmd(cmdarg_T *cap)
 	// that skipcol is not adjusted later.
 	if (curwin->w_skipcol > 0 && curwin->w_cursor.lnum == curwin->w_topline)
 	{
-	    int overlap = sms_marker_overlap(curwin, -1);
+	    int overlap = sms_marker_overlap(curwin, curwin->w_width - width2);
 	    if (overlap > 0 && i == curwin->w_skipcol)
 		i += overlap;
 	}
@@ -5782,6 +5787,14 @@ nv_g_home_m_cmd(cmdarg_T *cap)
 	curwin->w_valid &= ~VALID_WCOL;
     }
     curwin->w_set_curswant = TRUE;
+#ifdef FEAT_FOLDING
+    if (hasAnyFolding(curwin))
+    {
+	validate_cheight();
+	if (curwin->w_cline_folded)
+	    update_curswant_force();
+    }
+#endif
     adjust_skipcol();
 }
 
