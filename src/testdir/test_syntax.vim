@@ -209,7 +209,7 @@ endfunc
 
 func Test_echohl_completion()
   call feedkeys(":echohl no\<C-A>\<C-B>\"\<CR>", 'tx')
-  call assert_equal('"echohl NonText Normal none', @:)
+  call assert_equal('"echohl NONE NonText Normal', @:)
 endfunc
 
 func Test_syntax_arg_skipped()
@@ -631,6 +631,7 @@ endfunc
 
 " Check highlighting for a small piece of C code with a screen dump.
 func Test_syntax_c()
+  CheckScreendump
   CheckRunVimInTerminal
   call writefile([
 	\ '/* comment line at the top */',

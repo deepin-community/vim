@@ -110,6 +110,7 @@ static keyvalue_T event_tab[NUM_EVENTS] = {
     KEYVALUE_ENTRY(EVENT_CMDLINECHANGED, "CmdlineChanged"),
     KEYVALUE_ENTRY(EVENT_CMDLINEENTER, "CmdlineEnter"),
     KEYVALUE_ENTRY(EVENT_CMDLINELEAVE, "CmdlineLeave"),
+    KEYVALUE_ENTRY(EVENT_CMDLINELEAVEPRE, "CmdlineLeavePre"),
     KEYVALUE_ENTRY(EVENT_CMDUNDEFINED, "CmdUndefined"),
     KEYVALUE_ENTRY(EVENT_CMDWINENTER, "CmdwinEnter"),
     KEYVALUE_ENTRY(EVENT_CMDWINLEAVE, "CmdwinLeave"),
@@ -180,6 +181,7 @@ static keyvalue_T event_tab[NUM_EVENTS] = {
     KEYVALUE_ENTRY(EVENT_SWAPEXISTS, "SwapExists"),
     KEYVALUE_ENTRY(EVENT_SYNTAX, "Syntax"),
     KEYVALUE_ENTRY(EVENT_TABCLOSED, "TabClosed"),
+    KEYVALUE_ENTRY(EVENT_TABCLOSEDPRE, "TabClosedPre"),
     KEYVALUE_ENTRY(EVENT_TABENTER, "TabEnter"),
     KEYVALUE_ENTRY(EVENT_TABLEAVE, "TabLeave"),
     KEYVALUE_ENTRY(EVENT_TABNEW, "TabNew"),
@@ -870,7 +872,7 @@ au_event_disable(char *what)
     if (*what == ',' && *p_ei == NUL)
 	STRCPY(new_ei, what + 1);
     else
-	STRCAT(new_ei, what);
+	STRCPY(new_ei + p_ei_len, what);
     set_string_option_direct((char_u *)"ei", -1, new_ei,
 	    OPT_FREE, SID_NONE);
     vim_free(new_ei);
@@ -2133,16 +2135,24 @@ apply_autocmds_group(
     if (event_ignored(event, p_ei))
 	goto BYPASS_AU;
 
-    wininfo_T *wip;
     int win_ignore = FALSE;
     // If event is allowed in 'eventignorewin', check if curwin or all windows
     // into "buf" are ignoring the event.
     if (buf == curbuf && event_tab[event].key <= 0)
 	win_ignore = event_ignored(event, curwin->w_p_eiw);
-    else if (buf != NULL && event_tab[event].key <= 0)
-	FOR_ALL_BUF_WININFO(buf, wip)
-	    if (wip->wi_win != NULL && wip->wi_win->w_buffer == buf)
-		win_ignore = event_ignored(event, wip->wi_win->w_p_eiw);
+    else if (buf != NULL && event_tab[event].key <= 0 && buf->b_nwindows > 0)
+    {
+	tabpage_T *tp;
+	win_T *wp;
+
+	win_ignore = TRUE;
+	FOR_ALL_TAB_WINDOWS(tp, wp)
+	    if (wp->w_buffer == buf && !event_ignored(event, wp->w_p_eiw))
+	    {
+		win_ignore = FALSE;
+		break;
+	    }
+    }
     if (win_ignore)
 	goto BYPASS_AU;
 
@@ -2252,6 +2262,7 @@ apply_autocmds_group(
 		|| event == EVENT_SYNTAX
 		|| event == EVENT_CMDLINECHANGED
 		|| event == EVENT_CMDLINEENTER
+		|| event == EVENT_CMDLINELEAVEPRE
 		|| event == EVENT_CMDLINELEAVE
 		|| event == EVENT_CURSORMOVEDC
 		|| event == EVENT_CMDWINENTER
@@ -2900,6 +2911,14 @@ get_event_name_no_group(expand_T *xp UNUSED, int idx, int win)
     return NULL;
 }
 
+/*
+ * Return TRUE when there is a TabClosedPre autocommand defined.
+ */
+    int
+has_tabclosedpre(void)
+{
+    return (first_autopat[(int)EVENT_TABCLOSEDPRE] != NULL);
+}
 
 #if defined(FEAT_EVAL) || defined(PROTO)
 /*

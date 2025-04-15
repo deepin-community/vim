@@ -1,8 +1,27 @@
-vim (2:9.1.1113-1deepin1) unstable; urgency=medium
+vim (2:9.1.1385-1deepin1) experimental; urgency=medium
+
+  [ James McCoy ]
+  * Merge upstream tag v9.1.1385
+
+  [ Kirill Rekhov ]
+  * d/upstream/metadata: add metadata
+  * Fix day-of-week for changelog entries 1:6.3-015+1, 1:6.3-010+1, 4.6-2.
 
   * Set NoDisplay=true for vim.desktop
 
- -- Tianyu Chen <sweetyfish@deepin.org>  Wed, 19 Mar 2025 09:21:18 +0800
+ -- lhdjply <lhdjply@126.com>  Wed, 21 Mar 2025 15:27:16 +0800
+
+vim (2:9.1.1230-1) unstable; urgency=medium
+
+  * Merge upstream tag v9.1.1230
+    + Security fixes:
+      - 9.1.1115: use-after-free in str_to_reg(), CVE-2025-26603
+      - 9.1.1164: editing a specially crafted tar file allows code execution,
+        (Closes: #1099610, CVE-2025-27423)
+      - 9.1.1198: potential data loss with zip.vim and crafted zip files,
+        (Closes: #1101016, CVE-2025-29768)
+
+ -- James McCoy <jamessan@debian.org>  Mon, 24 Mar 2025 20:59:06 -0400
 
 vim (2:9.1.1113-1) unstable; urgency=medium
 
@@ -4468,7 +4487,7 @@ vim (1:6.3-015+1) unstable; urgency=medium
     and fixes svn commit file highlighting.
   * Added a new patch which adds s390 and amd64 to debcontrol.vim.
 
- -- Norbert Tretkowski <nobse@debian.org>  Wed, 17 Aug 2004 19:34:13 +0200
+ -- Norbert Tretkowski <nobse@debian.org>  Tue, 17 Aug 2004 19:34:13 +0200
 
 vim (1:6.3-013+2) unstable; urgency=low
 
@@ -4515,7 +4534,7 @@ vim (1:6.3-010+1) unstable; urgency=low
     + updated kvim patch to apply without conflicts to new vim upstream
       patches
 
- -- Norbert Tretkowski <nobse@debian.org>  Thu, 30 Jun 2004 18:35:26 +0200
+ -- Norbert Tretkowski <nobse@debian.org>  Wed, 30 Jun 2004 18:35:26 +0200
 
 vim (1:6.3-004+1) unstable; urgency=low
 
@@ -7540,7 +7559,7 @@ vim (4.6-2) unstable; urgency=low
   * Built with libc6, ncurses3.4, and xlib6g
   * Updated menu entry
 
- -- Galen Hazelwood <galenh@micron.net>  Thu,  9 Sep 1997 12:44:30 -0600
+ -- Galen Hazelwood <galenh@micron.net>  Tue, 09 Sep 1997 12:44:30 -0600
 
 vim (4.6-1) frozen unstable; urgency=low
 
