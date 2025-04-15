@@ -2188,15 +2188,17 @@ generate_SOURCE(cctx_T *cctx, int sid)
 }
 
 /*
- * Generate an ISN_PUT instruction.
+ * Generate an ISN_PUT or ISN_IPUT instruction depending on fixindent.
  */
     int
-generate_PUT(cctx_T *cctx, int regname, linenr_T lnum)
+generate_PUT(cctx_T *cctx, int regname, linenr_T lnum, int fixindent)
 {
     isn_T	*isn;
 
     RETURN_OK_IF_SKIP(cctx);
-    if ((isn = generate_instr(cctx, ISN_PUT)) == NULL)
+    isn = (fixindent) ? generate_instr(cctx, ISN_IPUT) :
+			generate_instr(cctx, ISN_PUT);
+    if (isn == NULL)
 	return FAIL;
     isn->isn_arg.put.put_regname = regname;
     isn->isn_arg.put.put_lnum = lnum;
@@ -2506,6 +2508,23 @@ generate_store_lhs(cctx_T *cctx, lhs_T *lhs, int instr_count, int is_decl)
     return OK;
 }
 
+/*
+ * Generate instruction to set the script context.  Used to evaluate an
+ * object member variable initialization expression in the context of the
+ * script where the class is defined.
+ */
+    int
+generate_SCRIPTCTX_SET(cctx_T *cctx, sctx_T new_sctx)
+{
+    isn_T	*isn;
+
+    RETURN_OK_IF_SKIP(cctx);
+    if ((isn = generate_instr(cctx, ISN_SCRIPTCTX_SET)) == NULL)
+	return FAIL;
+    isn->isn_arg.setsctx = new_sctx;
+    return OK;
+}
+
 #if defined(FEAT_PROFILE) || defined(PROTO)
     void
 may_generate_prof_end(cctx_T *cctx, int prof_lnum)
@@ -2797,6 +2816,7 @@ delete_instr(isn_T *isn)
 	case ISN_PUSHOBJ:
 	case ISN_PUSHSPEC:
 	case ISN_PUT:
+	case ISN_IPUT:
 	case ISN_REDIREND:
 	case ISN_REDIRSTART:
 	case ISN_RETURN:
@@ -2821,6 +2841,7 @@ delete_instr(isn_T *isn)
 	case ISN_UNPACK:
 	case ISN_USEDICT:
 	case ISN_WHILE:
+	case ISN_SCRIPTCTX_SET:
 	// nothing allocated
 	break;
     }

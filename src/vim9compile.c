@@ -837,36 +837,6 @@ find_imported(char_u *name, size_t len, int load)
 }
 
 /*
- * Find "name" in imported items of extended base class of the class to which
- * the context :def function belongs.
- */
-    imported_T *
-find_imported_from_extends(cctx_T *cctx, char_u *name, size_t len, int load)
-{
-    imported_T	*ret = NULL;
-    class_T	*cl_extends;
-
-    if (cctx == NULL || cctx->ctx_ufunc == NULL
-					|| cctx->ctx_ufunc->uf_class == NULL)
-	return NULL;
-
-    cl_extends = cctx->ctx_ufunc->uf_class->class_extends;
-
-    if (cl_extends == NULL || cl_extends->class_class_function_count_child <= 0)
-	return NULL;
-    else
-    {
-	sctx_T current_sctx_save = current_sctx;
-
-	current_sctx = cl_extends->class_class_functions[0]->uf_script_ctx;
-	ret = find_imported(name, len, load);
-	current_sctx = current_sctx_save;
-
-	return ret;
-    }
-}
-
-/*
  * Called when checking for a following operator at "arg".  When the rest of
  * the line is empty or only a comment, peek the next line.  If there is a next
  * line return a pointer to it and set "nextp".
@@ -1063,8 +1033,7 @@ compile_nested_function(exarg_T *eap, cctx_T *cctx, garray_T *lines_to_free)
     char_u	*name_end = to_name_end(eap->arg, TRUE);
     int		off;
     char_u	*func_name;
-    char_u	*lambda_name;
-    size_t	lambda_namelen;
+    string_T	lambda_name;
     ufunc_T	*ufunc;
     int		r = FAIL;
     compiletype_T   compile_type;
@@ -1124,9 +1093,8 @@ compile_nested_function(exarg_T *eap, cctx_T *cctx, garray_T *lines_to_free)
     eap->forceit = FALSE;
     // We use the special <Lamba>99 name, but it's not really a lambda.
     lambda_name = get_lambda_name();
-    lambda_namelen = get_lambda_name_len();
-    lambda_name = vim_strnsave(lambda_name, lambda_namelen);
-    if (lambda_name == NULL)
+    lambda_name.string = vim_strnsave(lambda_name.string, lambda_name.length);
+    if (lambda_name.string == NULL)
 	return NULL;
 
     // This may free the current line, make a copy of the name.
@@ -1142,7 +1110,7 @@ compile_nested_function(exarg_T *eap, cctx_T *cctx, garray_T *lines_to_free)
     int save_KeyTyped = KeyTyped;
     KeyTyped = FALSE;
 
-    ufunc = define_function(eap, lambda_name, lines_to_free, 0, NULL, 0);
+    ufunc = define_function(eap, lambda_name.string, lines_to_free, 0, NULL, 0);
 
     KeyTyped = save_KeyTyped;
 
@@ -1178,9 +1146,10 @@ compile_nested_function(exarg_T *eap, cctx_T *cctx, garray_T *lines_to_free)
     // recursive call.
     if (is_global)
     {
-	r = generate_NEWFUNC(cctx, lambda_name, func_name);
+	r = generate_NEWFUNC(cctx, lambda_name.string, func_name);
 	func_name = NULL;
-	lambda_name = NULL;
+	lambda_name.string = NULL;
+	lambda_name.length = 0;
     }
     else
     {
@@ -1227,7 +1196,7 @@ compile_nested_function(exarg_T *eap, cctx_T *cctx, garray_T *lines_to_free)
     }
 
 theend:
-    vim_free(lambda_name);
+    vim_free(lambda_name.string);
     vim_free(func_name);
     return r == FAIL ? NULL : (char_u *)"";
 }
@@ -4001,9 +3970,34 @@ obj_constructor_prologue(ufunc_T *ufunc, cctx_T *cctx)
 
 	if (m->ocm_init != NULL)
 	{
-	    char_u *expr = m->ocm_init;
+	    char_u	*expr = m->ocm_init;
+	    sctx_T	save_current_sctx;
+	    int		change_sctx = FALSE;
 
-	    if (compile_expr0(&expr, cctx) == FAIL)
+	    // If the member variable initialization script context is
+	    // different from the current script context, then change it.
+	    if (current_sctx.sc_sid != m->ocm_init_sctx.sc_sid)
+		change_sctx = TRUE;
+
+	    if (change_sctx)
+	    {
+		// generate an instruction to change the script context to the
+		// member variable initialization script context.
+		save_current_sctx = current_sctx;
+		current_sctx = m->ocm_init_sctx;
+		generate_SCRIPTCTX_SET(cctx, current_sctx);
+	    }
+
+	    int r = compile_expr0(&expr, cctx);
+
+	    if (change_sctx)
+	    {
+		// restore the previous script context
+		current_sctx = save_current_sctx;
+		generate_SCRIPTCTX_SET(cctx, current_sctx);
+	    }
+
+	    if (r == FAIL)
 		return FAIL;
 
 	    if (!ends_excmd2(m->ocm_init, expr))
@@ -4601,7 +4595,12 @@ compile_def_function_body(
 
 	    case CMD_put:
 		    ea.cmd = cmd;
-		    line = compile_put(p, &ea, cctx);
+		    line = compile_put(p, &ea, cctx, FALSE);
+		    break;
+
+	    case CMD_iput:
+		    ea.cmd = cmd;
+		    line = compile_put(p, &ea, cctx, TRUE);
 		    break;
 
 	    case CMD_substitute:
