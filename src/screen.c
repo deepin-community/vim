@@ -2327,7 +2327,11 @@ screen_fill(
 	{
 	    redraw_cmdline = TRUE;
 	    if (start_col == 0 && end_col == Columns
-		    && c1 == ' ' && c2 == ' ' && attr == 0)
+		    && c1 == ' ' && c2 == ' ' && attr == 0
+#ifdef FEAT_PROP_POPUP
+		    && !popup_overlaps_cmdline()
+#endif
+		    )
 		clear_cmdline = FALSE;	// command line has been cleared
 	    if (start_col == 0)
 		mode_displayed = FALSE; // mode cleared or overwritten
@@ -4708,7 +4712,9 @@ static struct charstab filltab[] =
     CHARSTAB_ENTRY(&fill_chars.foldsep,	    "foldsep"),
     CHARSTAB_ENTRY(&fill_chars.diff,	    "diff"),
     CHARSTAB_ENTRY(&fill_chars.eob,	    "eob"),
-    CHARSTAB_ENTRY(&fill_chars.lastline,    "lastline")
+    CHARSTAB_ENTRY(&fill_chars.lastline,    "lastline"),
+    CHARSTAB_ENTRY(&fill_chars.trunc,	    "trunc"),
+    CHARSTAB_ENTRY(&fill_chars.truncrl,	    "truncrl"),
 };
 static lcs_chars_T lcs_chars;
 static struct charstab lcstab[] =
@@ -4822,6 +4828,8 @@ set_chars_option(win_T *wp, char_u *value, int is_listchars, int apply,
 		fill_chars.diff = '-';
 		fill_chars.eob = '~';
 		fill_chars.lastline = '@';
+		fill_chars.trunc = '>';
+		fill_chars.truncrl = '<';
 	    }
 	}
 	p = value;
@@ -4833,6 +4841,7 @@ set_chars_option(win_T *wp, char_u *value, int is_listchars, int apply,
 		    continue;
 
 		s = p + tab[i].name.length + 1;
+
 		if (is_listchars && STRCMP(tab[i].name.string, "multispace") == 0)
 		{
 		    if (round == 0)
@@ -4854,7 +4863,6 @@ set_chars_option(win_T *wp, char_u *value, int is_listchars, int apply,
 			    return field_value_err(errbuf, errbuflen,
 				    e_wrong_number_of_characters_for_field_str,
 				    tab[i].name.string);
-			p = s;
 		    }
 		    else
 		    {
@@ -4866,8 +4874,8 @@ set_chars_option(win_T *wp, char_u *value, int is_listchars, int apply,
 			    if (p == last_multispace && lcs_chars.multispace != NULL)
 				lcs_chars.multispace[multispace_pos++] = c1;
 			}
-			p = s;
 		    }
+		    p = s;
 		    break;
 		}
 
@@ -4875,7 +4883,7 @@ set_chars_option(win_T *wp, char_u *value, int is_listchars, int apply,
 		{
 		    if (round == 0)
 		    {
-			// get length of lcs-leadmultispace string in first
+			// Get length of lcs-leadmultispace string in first
 			// round
 			last_lmultispace = p;
 			lead_multispace_len = 0;
@@ -4893,7 +4901,6 @@ set_chars_option(win_T *wp, char_u *value, int is_listchars, int apply,
 			    return field_value_err(errbuf, errbuflen,
 				    e_wrong_number_of_characters_for_field_str,
 				    tab[i].name.string);
-			p = s;
 		    }
 		    else
 		    {
@@ -4905,8 +4912,8 @@ set_chars_option(win_T *wp, char_u *value, int is_listchars, int apply,
 			    if (p == last_lmultispace && lcs_chars.leadmultispace != NULL)
 				lcs_chars.leadmultispace[multispace_pos++] = c1;
 			}
-			p = s;
 		    }
+		    p = s;
 		    break;
 		}
 

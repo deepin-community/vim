@@ -598,21 +598,18 @@ vim_strnicmp(char *s1, char *s2, size_t len)
 vim_strnicmp_asc(char *s1, char *s2, size_t len)
 {
     int                i = 0;
-    int                save_cmp_flags = cmp_flags;
 
-    cmp_flags |= CMP_KEEPASCII;		// compare by ASCII value, ignoring locale
     while (len > 0)
     {
-       i = vim_tolower(*s1) - vim_tolower(*s2);
+       i = TOLOWER_ASC(*s1) - TOLOWER_ASC(*s2);
        if (i != 0)
-           break;			// this character is different
+	   break;			// this character is different
        if (*s1 == NUL)
-           break;			// strings match until NUL
+	   break;			// strings match until NUL
        ++s1;
        ++s2;
        --len;
     }
-    cmp_flags = save_cmp_flags;
     return i;
 }
 
@@ -1289,7 +1286,7 @@ f_blob2str(typval_T *argvars, typval_T *rettv)
     blob_T	*blob;
     int		blen;
     long	idx;
-    int		utf8_inuse = FALSE;
+    int		validate_utf8 = FALSE;
 
     if (check_for_blob_arg(argvars, 0) == FAIL
 	    || check_for_opt_dict_arg(argvars, 1) == FAIL)
@@ -1316,7 +1313,14 @@ f_blob2str(typval_T *argvars, typval_T *rettv)
     }
 
     if (STRCMP(p_enc, "utf-8") == 0 || STRCMP(p_enc, "utf8") == 0)
-	utf8_inuse = TRUE;
+	validate_utf8 = TRUE;
+
+    if (from_encoding != NULL && STRCMP(from_encoding, "none") == 0)
+    {
+	validate_utf8 = FALSE;
+	vim_free(from_encoding);
+	from_encoding = NULL;
+    }
 
     idx = 0;
     while (idx < blen)
@@ -1335,16 +1339,16 @@ f_blob2str(typval_T *argvars, typval_T *rettv)
 	    vim_free(str);
 	    if (converted_str == NULL)
 	    {
-		semsg(_(e_str_encoding_failed), "from", from_encoding);
+		semsg(_(e_str_encoding_from_failed), from_encoding);
 		goto done;
 	    }
 	}
 
-	if (utf8_inuse)
+	if (validate_utf8)
 	{
 	    if (!utf_valid_string(converted_str, NULL))
 	    {
-		semsg(_(e_str_encoding_failed), "from", p_enc);
+		semsg(_(e_str_encoding_from_failed), p_enc);
 		vim_free(converted_str);
 		goto done;
 	    }
@@ -1410,7 +1414,7 @@ f_str2blob(typval_T *argvars, typval_T *rettv)
 	    str = convert_string(str, p_enc, to_encoding);
 	    if (str == NULL)
 	    {
-		semsg(_(e_str_encoding_failed), "to", to_encoding);
+		semsg(_(e_str_encoding_to_failed), to_encoding);
 		goto done;
 	    }
 	}
@@ -2483,6 +2487,33 @@ vim_snprintf(char *str, size_t str_m, const char *fmt, ...)
     return str_l;
 }
 
+/*
+ * Like vim_snprintf() except the return value can be safely used to increment a
+ * buffer length.
+ * Normal `snprintf()` (and `vim_snprintf()`) returns the number of bytes that
+ * would have been copied if the destination buffer was large enough.
+ * This means that you cannot rely on it's return value for the destination
+ * length because the destination may be shorter than the source. This function
+ * guarantees the returned length will never be greater than the destination length.
+ */
+    size_t
+vim_snprintf_safelen(char *str, size_t str_m, const char *fmt, ...)
+{
+    va_list ap;
+    int	    str_l;
+
+    va_start(ap, fmt);
+    str_l = vim_vsnprintf(str, str_m, fmt, ap);
+    va_end(ap);
+
+    if (str_l < 0)
+    {
+	*str = NUL;
+	return 0;
+    }
+    return ((size_t)str_l >= str_m) ? str_m - 1 : (size_t)str_l;
+}
+
     int
 vim_vsnprintf(
     char	*str,
@@ -2751,7 +2782,7 @@ format_overflow_error(const char *pstart)
 	semsg(_(e_out_of_memory_allocating_nr_bytes), arglen);
 }
 
-#define MAX_ALLOWED_STRING_WIDTH 6400
+#define MAX_ALLOWED_STRING_WIDTH 1048576    // 1 MiB
 
     static int
 get_unsigned_int(

@@ -8,10 +8,10 @@ Closes: #382541
  1 file changed, 8 insertions(+)
 
 diff --git a/runtime/autoload/dist/script.vim b/runtime/autoload/dist/script.vim
-index 859126f..7534ef4 100644
+index c184bd0..02e4605 100644
 --- a/runtime/autoload/dist/script.vim
 +++ b/runtime/autoload/dist/script.vim
-@@ -423,6 +423,14 @@ def DetectFromText(line1: string)
+@@ -424,6 +424,14 @@ def DetectFromText(line1: string)
    elseif line1 =~ 'exec\s\+\S*scheme' || line2 =~ 'exec\s\+\S*scheme'
      setl ft=scheme
  
