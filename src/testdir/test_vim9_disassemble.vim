@@ -286,6 +286,20 @@ def Test_disassemble_put_expr()
         res)
 enddef
 
+def s:IputExpr()
+  :3iput ="text"
+enddef
+
+def Test_disassemble_iput_expr()
+  var res = execute('disass s:IputExpr')
+  assert_match('<SNR>\d*_IputExpr.*' ..
+        ' :3iput ="text"\_s*' ..
+        '\d PUSHS "text"\_s*' ..
+        '\d IPUT = 3\_s*' ..
+        '\d RETURN void',
+        res)
+enddef
+
 def s:PutRange()
   :$-2put a
   :$-3put! b
@@ -301,6 +315,25 @@ def Test_disassemble_put_range()
         ' :$-3put! b\_s*' ..
         '\d RANGE $-3\_s*' ..
         '\d PUT b above range\_s*' ..
+        '\d RETURN void',
+        res)
+enddef
+
+def s:IputRange()
+  :$-2iput a
+  :$-3iput! b
+enddef
+
+def Test_disassemble_iput_range()
+  var res = execute('disass s:IputRange')
+  assert_match('<SNR>\d*_IputRange.*' ..
+        ' :$-2iput a\_s*' ..
+        '\d RANGE $-2\_s*' ..
+        '\d IPUT a range\_s*' ..
+
+        ' :$-3iput! b\_s*' ..
+        '\d RANGE $-3\_s*' ..
+        '\d IPUT b above range\_s*' ..
         '\d RETURN void',
         res)
 enddef
@@ -3630,6 +3663,35 @@ def Test_disassemble_using_script_local_funcref()
     '1 PCALL (argc 0)\_s*' ..
     '2 DROP\_s*' ..
     '3 RETURN void\_s*', g:instr)
+  unlet g:instr
+enddef
+
+" Disassemble the code generated for using a script local variable
+" in an instance variable initialization expression
+def Test_disassemble_using_script_local_var_in_obj_init()
+  var lines =<< trim END
+    vim9script
+    const DEFAULT = 'default-obj_key'
+    export class ObjKey
+      const unique_object_id3 = DEFAULT
+    endclass
+  END
+  writefile(lines, 'Xscriptlocalobjinit.vim', 'D')
+  lines =<< trim END
+    vim9script
+    import './Xscriptlocalobjinit.vim' as obj_key
+
+    class C1 extends obj_key.ObjKey
+    endclass
+    g:instr = execute('disassemble C1.new')
+  END
+  v9.CheckScriptSuccess(lines)
+  assert_match('new\_s*' ..
+    '0 NEW C1 size \d\+\_s*' ..
+    '1 SCRIPTCTX_SET .*/Xscriptlocalobjinit.vim\_s*' ..
+    '2 LOADSCRIPT DEFAULT-0 from .*/Xscriptlocalobjinit.vim\_s*' ..
+    '3 SCRIPTCTX_SET .*\_s*' ..
+    '4 STORE_THIS 0', g:instr)
   unlet g:instr
 enddef
 
