@@ -1,8 +1,14 @@
-vim (2:9.1.1113-1deepin1) unstable; urgency=medium
+vim (2:9.1.1230-1) unstable; urgency=medium
 
-  * Set NoDisplay=true for vim.desktop
+  * Merge upstream tag v9.1.1230
+    + Security fixes:
+      - 9.1.1115: use-after-free in str_to_reg(), CVE-2025-26603
+      - 9.1.1164: editing a specially crafted tar file allows code execution,
+        (Closes: #1099610, CVE-2025-27423)
+      - 9.1.1198: potential data loss with zip.vim and crafted zip files,
+        (Closes: #1101016, CVE-2025-29768)
 
- -- Tianyu Chen <sweetyfish@deepin.org>  Wed, 19 Mar 2025 09:21:18 +0800
+ -- James McCoy <jamessan@debian.org>  Mon, 24 Mar 2025 20:59:06 -0400
 
 vim (2:9.1.1113-1) unstable; urgency=medium
 
