@@ -30,8 +30,9 @@ static char *(p_briopt_values[]) = {"shift:", "min:", "sbr", "list:", "column:",
 #endif
 #if defined(FEAT_DIFF)
 // Note: Keep this in sync with diffopt_changed()
-static char *(p_dip_values[]) = {"filler", "context:", "iblank", "icase", "iwhite", "iwhiteall", "iwhiteeol", "horizontal", "vertical", "closeoff", "hiddenoff", "foldcolumn:", "followwrap", "internal", "indent-heuristic", "algorithm:", "linematch:", NULL};
+static char *(p_dip_values[]) = {"filler", "context:", "iblank", "icase", "iwhite", "iwhiteall", "iwhiteeol", "horizontal", "vertical", "closeoff", "hiddenoff", "foldcolumn:", "followwrap", "internal", "indent-heuristic", "algorithm:", "inline:", "linematch:", NULL};
 static char *(p_dip_algorithm_values[]) = {"myers", "minimal", "patience", "histogram", NULL};
+static char *(p_dip_inline_values[]) = {"none", "simple", "char", "word", NULL};
 #endif
 static char *(p_nf_values[]) = {"bin", "octal", "hex", "alpha", "unsigned", "blank", NULL};
 static char *(p_ff_values[]) = {FF_UNIX, FF_DOS, FF_MAC, NULL};
@@ -94,7 +95,7 @@ static char *(p_ttym_values[]) = {"xterm", "xterm2", "dec", "netterm", "jsbterm"
 #endif
 static char *(p_ve_values[]) = {"block", "insert", "all", "onemore", "none", "NONE", NULL};
 // Note: Keep this in sync with check_opt_wim()
-static char *(p_wim_values[]) = {"full", "longest", "list", "lastused", NULL};
+static char *(p_wim_values[]) = {"full", "longest", "list", "lastused", "noselect", NULL};
 static char *(p_wop_values[]) = {"fuzzy", "tagfile", "pum", NULL};
 #ifdef FEAT_WAK
 static char *(p_wak_values[]) = {"yes", "menu", "no", NULL};
@@ -120,7 +121,8 @@ static char *(p_fdm_values[]) = {"manual", "expr", "marker", "indent", "syntax",
 				NULL};
 static char *(p_fcl_values[]) = {"all", NULL};
 #endif
-static char *(p_cot_values[]) = {"menu", "menuone", "longest", "preview", "popup", "popuphidden", "noinsert", "noselect", "fuzzy", "nosort", "preinsert", NULL};
+static char *(p_cfc_values[]) = {"keyword", "files", "whole_line", NULL};
+static char *(p_cot_values[]) = {"menu", "menuone", "longest", "preview", "popup", "popuphidden", "noinsert", "noselect", "fuzzy", "nosort", "preinsert", "nearest", NULL};
 #ifdef BACKSLASH_IN_FILENAME
 static char *(p_csl_values[]) = {"slash", "backslash", NULL};
 #endif
@@ -146,6 +148,7 @@ didset_string_options(void)
     (void)opt_strings_flags(p_cmp, p_cmp_values, &cmp_flags, TRUE);
     (void)opt_strings_flags(p_bkc, p_bkc_values, &bkc_flags, TRUE);
     (void)opt_strings_flags(p_bo, p_bo_values, &bo_flags, TRUE);
+    (void)opt_strings_flags(p_cfc, p_cfc_values, &cfc_flags, TRUE);
     (void)opt_strings_flags(p_cot, p_cot_values, &cot_flags, TRUE);
 #ifdef FEAT_SESSION
     (void)opt_strings_flags(p_ssop, p_ssop_values, &ssop_flags, TRUE);
@@ -307,6 +310,7 @@ check_buf_options(buf_T *buf)
     check_string_option(&buf->b_p_cinw);
     check_string_option(&buf->b_p_cot);
     check_string_option(&buf->b_p_cpt);
+    check_string_option(&buf->b_p_ise);
 #ifdef FEAT_COMPL_FUNC
     check_string_option(&buf->b_p_cfu);
     check_string_option(&buf->b_p_ofu);
@@ -1549,48 +1553,82 @@ did_set_commentstring(optset_T *args)
 #endif
 
 /*
- * The 'complete' option is changed.
+ * Check if value for 'complete' is valid when 'complete' option is changed.
  */
     char *
 did_set_complete(optset_T *args)
 {
     char_u	**varp = (char_u **)args->os_varp;
-    char_u	*s;
+    char_u	*p, *t;
+    char_u	buffer[LSIZE];
+    char_u	*buf_ptr;
+    char_u	char_before = NUL;
+    int		escape;
 
-    // check if it is a valid value for 'complete' -- Acevedo
-    for (s = *varp; *s;)
+    for (p = *varp; *p; )
     {
-	while (*s == ',' || *s == ' ')
-	    s++;
-	if (!*s)
-	    break;
-	if (vim_strchr((char_u *)".wbuksid]tU", *s) == NULL)
-	    return illegal_char(args->os_errbuf, args->os_errbuflen, *s);
-	if (*++s != NUL && *s != ',' && *s != ' ')
+	vim_memset(buffer, 0, LSIZE);
+	buf_ptr = buffer;
+	escape = 0;
+
+	// Extract substring while handling escaped commas
+	while (*p && (*p != ',' || escape) && buf_ptr < (buffer + LSIZE - 1))
 	{
-	    if (s[-1] == 'k' || s[-1] == 's')
+	    if (*p == '\\' && *(p + 1) == ',')
 	    {
-		// skip optional filename after 'k' and 's'
-		while (*s && *s != ',' && *s != ' ')
-		{
-		    if (*s == '\\' && s[1] != NUL)
-			++s;
-		    ++s;
-		}
+		escape = 1;  // Mark escape mode
+		p++;         // Skip '\'
 	    }
 	    else
 	    {
-		if (args->os_errbuf != NULL)
+		escape = 0;
+		*buf_ptr++ = *p;
+	    }
+	    p++;
+	}
+	*buf_ptr = NUL;
+
+	if (vim_strchr((char_u *)".wbuksid]tUfo", *buffer) == NULL)
+	    return illegal_char(args->os_errbuf, args->os_errbuflen, *buffer);
+
+	if (vim_strchr((char_u *)"ksf", *buffer) == NULL && *(buffer + 1) != NUL
+		&& *(buffer + 1) != '^')
+	    char_before = *buffer;
+	else
+	{
+	    // Test for a number after '^'
+	    if ((t = vim_strchr(buffer, '^')) != NULL)
+	    {
+		*t++ = NUL;
+		if (!*t)
+		    char_before = '^';
+		else
 		{
-		    vim_snprintf((char *)args->os_errbuf, args->os_errbuflen,
-			    _(e_illegal_character_after_chr), *--s);
-		    return args->os_errbuf;
+		    for (; *t; t++)
+		    {
+			if (!vim_isdigit(*t))
+			{
+			    char_before = '^';
+			    break;
+			}
+		    }
 		}
-		return "";
 	    }
 	}
+	if (char_before != NUL)
+	{
+	    if (args->os_errbuf)
+	    {
+		vim_snprintf((char *)args->os_errbuf, args->os_errbuflen,
+			_(e_illegal_character_after_chr), char_before);
+		return args->os_errbuf;
+	    }
+	    return NULL;
+	}
+	// Skip comma and spaces
+	while (*p == ',' || *p == ' ')
+	    p++;
     }
-
     return NULL;
 }
 
@@ -1598,7 +1636,7 @@ did_set_complete(optset_T *args)
 expand_set_complete(optexpand_T *args, int *numMatches, char_u ***matches)
 {
     static char *(p_cpt_values[]) = {
-	".", "w", "b", "u", "k", "kspell", "s", "i", "d", "]", "t", "U",
+	".", "w", "b", "u", "k", "kspell", "s", "i", "d", "]", "t", "U", "f", "o",
 	NULL};
     return expand_set_opt_string(
 	    args,
@@ -1642,6 +1680,31 @@ expand_set_completeopt(optexpand_T *args, int *numMatches, char_u ***matches)
 	    args,
 	    p_cot_values,
 	    ARRAY_LENGTH(p_cot_values) - 1,
+	    numMatches,
+	    matches);
+}
+
+/*
+ * The 'completefuzzycollect' option is changed.
+ */
+    char *
+did_set_completefuzzycollect(optset_T *args UNUSED)
+{
+    if (opt_strings_flags(p_cfc, p_cfc_values, &cfc_flags, TRUE) != OK)
+	return e_invalid_argument;
+    return NULL;
+}
+
+    int
+expand_set_completefuzzycollect(
+	optexpand_T *args,
+	int *numMatches,
+	char_u ***matches)
+{
+    return expand_set_opt_string(
+	    args,
+	    p_cfc_values,
+	    ARRAY_LENGTH(p_cfc_values) - 1,
 	    numMatches,
 	    matches);
 }
@@ -1987,6 +2050,18 @@ expand_set_diffopt(optexpand_T *args, int *numMatches, char_u ***matches)
 		    args,
 		    p_dip_algorithm_values,
 		    ARRAY_LENGTH(p_dip_algorithm_values) - 1,
+		    numMatches,
+		    matches);
+	}
+	// Within "inline:", we have a subgroup of possible options.
+	int inline_len = (int)STRLEN("inline:");
+	if (xp->xp_pattern - args->oe_set_arg >= inline_len &&
+		STRNCMP(xp->xp_pattern - inline_len, "inline:", inline_len) == 0)
+	{
+	    return expand_set_opt_string(
+		    args,
+		    p_dip_inline_values,
+		    ARRAY_LENGTH(p_dip_inline_values) - 1,
 		    numMatches,
 		    matches);
 	}
@@ -2789,6 +2864,48 @@ did_set_imactivatekey(optset_T *args UNUSED)
     return NULL;
 }
 #endif
+
+/*
+ * The 'isexpand' option is changed.
+ */
+    char *
+did_set_isexpand(optset_T *args)
+{
+    char_u  *ise = p_ise;
+    char_u  *p;
+    int     last_was_comma = FALSE;
+
+    if (args->os_flags & OPT_LOCAL)
+	ise = curbuf->b_p_ise;
+
+    for (p = ise; *p != NUL;)
+    {
+	if (*p == '\\' && p[1] == ',')
+	{
+	    p += 2;
+	    last_was_comma = FALSE;
+	    continue;
+	}
+
+	if (*p == ',')
+	{
+	    if (last_was_comma)
+		return e_invalid_argument;
+	    last_was_comma = TRUE;
+	    p++;
+	    continue;
+	}
+
+	last_was_comma = FALSE;
+	MB_PTR_ADV(p);
+    }
+
+    if (last_was_comma)
+	return e_invalid_argument;
+
+    return NULL;
+}
+
 
 /*
  * The 'iskeyword' option is changed.
@@ -4652,10 +4769,13 @@ did_set_string_option(
 	    setmouse();		    // in case 'mouse' changed
     }
 
-#if defined(FEAT_LUA) || defined(PROTO)
     if (varp == &p_rtp)
+    {
+	export_myvimdir();
+#if defined(FEAT_LUA) || defined(PROTO)
 	update_package_paths_in_lua();
 #endif
+    }
 
 #if defined(FEAT_LINEBREAK)
     // Changing Formatlistpattern when briopt includes the list setting:
@@ -4808,4 +4928,38 @@ restore_shm_value(void)
 	set_option_value_give_err((char_u *)"shm", 0L, shm_buf, 0);
 	vim_memset(shm_buf, 0, SHM_LEN);
     }
+}
+
+/*
+ * Export the environment variable $MYVIMDIR to the first item in runtimepath
+ */
+    void
+export_myvimdir()
+{
+    int		dofree = FALSE;
+    char_u	*p;
+    char_u	*q = p_rtp;
+    char_u	*buf = alloc(MAXPATHL);
+
+    if (buf == NULL)
+	return;
+
+    (void)copy_option_part(&q, buf, MAXPATHL, ",");
+
+    p = vim_getenv((char_u *)"MYVIMDIR", &dofree);
+
+    if (p == NULL || STRCMP(p, buf) != 0)
+    {
+	add_pathsep(buf);
+#ifdef MSWIN
+	// normalize path separators
+	for (q = buf; *q != NUL; q++)
+	    if (*q == '/')
+		*q = '\\';
+#endif
+	vim_setenv((char_u *)"MYVIMDIR", buf);
+    }
+    if (dofree)
+	vim_free(p);
+    vim_free(buf);
 }

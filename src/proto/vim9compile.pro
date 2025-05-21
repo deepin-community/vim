@@ -2,7 +2,6 @@
 int lookup_local(char_u *name, size_t len, lvar_T *lvar, cctx_T *cctx);
 int arg_exists(char_u *name, size_t len, int *idxp, type_T **type, int *gen_load_outer, cctx_T *cctx);
 void update_script_var_block_id(char_u *name, int block_id);
-int script_is_vim9(void);
 int script_var_exists(char_u *name, size_t len, cctx_T *cctx, cstack_T *cstack);
 int cctx_class_method_idx(cctx_T *cctx, char_u *name, size_t len, class_T **cl_ret);
 int cctx_class_member_idx(cctx_T *cctx, char_u *name, size_t len, class_T **cl_ret);
@@ -12,7 +11,6 @@ int need_type(type_T *actual, type_T *expected, int number_ok, int offset, int a
 lvar_T *reserve_local(cctx_T *cctx, char_u *name, size_t len, int assign, type_T *type);
 int get_script_item_idx(int sid, char_u *name, int check_writable, cctx_T *cctx, cstack_T *cstack);
 imported_T *find_imported(char_u *name, size_t len, int load);
-imported_T *find_imported_from_extends(cctx_T *cctx, char_u *name, size_t len, int load);
 char_u *may_peek_next_line(cctx_T *cctx, char_u *arg, char_u **nextp);
 char_u *peek_next_line_from_context(cctx_T *cctx);
 char_u *next_line_from_context(cctx_T *cctx, int skip_comment);
