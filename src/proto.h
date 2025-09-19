@@ -140,7 +140,6 @@ void siemsg(const char *, ...) ATTRIBUTE_COLD ATTRIBUTE_FORMAT_PRINTF(1, 2);
 int vim_snprintf_add(char *, size_t, const char *, ...) ATTRIBUTE_FORMAT_PRINTF(3, 4);
 
 int vim_snprintf(char *, size_t, const char *, ...) ATTRIBUTE_FORMAT_PRINTF(3, 4);
-size_t vim_snprintf_safelen(char *, size_t, const char *, ...) ATTRIBUTE_FORMAT_PRINTF(3, 4);
 
 int vim_vsnprintf(char *str, size_t str_m, const char *fmt, va_list ap)
 	ATTRIBUTE_FORMAT_PRINTF(3, 0);
@@ -208,7 +207,6 @@ void mbyte_im_set_active(int active_arg);
 # include "textobject.pro"
 # include "textformat.pro"
 # include "time.pro"
-# include "tuple.pro"
 # include "typval.pro"
 # include "ui.pro"
 # include "undo.pro"

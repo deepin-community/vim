@@ -45,7 +45,7 @@ static int	buf_same_ino(buf_T *buf, stat_T *stp);
 static int	otherfile_buf(buf_T *buf, char_u *ffname);
 #endif
 static int	value_changed(char_u *str, char_u **last);
-static int	append_arg_number(win_T *wp, char_u *buf, size_t buflen, int add_file);
+static int	append_arg_number(win_T *wp, char_u *buf, int buflen, int add_file);
 static void	free_buffer(buf_T *);
 static void	free_buffer_stuff(buf_T *buf, int free_options);
 static int	bt_nofileread(buf_T *buf);
@@ -71,33 +71,6 @@ static int	buf_free_count = 0;
 
 static int	top_file_num = 1;	// highest file number
 static garray_T buf_reuse = GA_EMPTY;	// file numbers to recycle
-
-    static void
-trigger_undo_ftplugin(buf_T *buf, win_T *win)
-{
-    window_layout_lock();
-    buf->b_locked++;
-    win->w_locked = TRUE;
-    // b:undo_ftplugin may be set, undo it
-    do_cmdline_cmd((char_u*)"if exists('b:undo_ftplugin') | :legacy :exe \
-	    b:undo_ftplugin | endif");
-    buf->b_locked--;
-    win->w_locked = FALSE;
-    window_layout_unlock();
-}
-
-/*
- * Calculate the percentage that `part` is of the `whole`.
- */
-    static int
-calc_percentage(long part, long whole)
-{
-    // With 32 bit longs and more than 21,474,836 lines multiplying by 100
-    // causes an overflow, thus for large numbers divide instead.
-    return (part > 1000000L)
-	? (int)(part / (whole / 100L))
-	: (int)((part * 100L) / whole);
-}
 
 /*
  * Return the highest possible buffer number.
@@ -481,7 +454,7 @@ static hashtab_T buf_hashtab;
     static void
 buf_hashtab_add(buf_T *buf)
 {
-    vim_snprintf((char *)buf->b_key, sizeof(buf->b_key), "%x", buf->b_fnum);
+    sprintf((char *)buf->b_key, "%x", buf->b_fnum);
     if (hash_add(&buf_hashtab, buf->b_key, "create buffer") == FAIL)
 	emsg(_(e_buffer_cannot_be_registered));
 }
@@ -524,6 +497,12 @@ can_unload_buffer(buf_T *buf)
 				fname != NULL ? fname : (char_u *)"[No Name]");
     }
     return can_unload;
+}
+
+    int
+buf_locked(buf_T *buf)
+{
+    return buf->b_locked || buf->b_locked_split;
 }
 
 /*
@@ -1426,19 +1405,12 @@ do_buffer_ext(
     if ((flags & DOBUF_NOPOPUP) && bt_popup(buf) && !bt_terminal(buf))
 	return OK;
 #endif
-    if (action == DOBUF_GOTO && buf != curbuf)
-    {
-	if (!check_can_set_curbuf_forceit((flags & DOBUF_FORCEIT) != 0))
-	    // disallow navigating to another buffer when 'winfixbuf' is applied
-	    return FAIL;
-	if (buf->b_locked_split)
-	{
-	    // disallow navigating to a closing buffer, which like splitting,
-	    // can result in more windows displaying it
-	    emsg(_(e_cannot_switch_to_a_closing_buffer));
-	    return FAIL;
-	}
-    }
+    if (
+	action == DOBUF_GOTO
+	&& buf != curbuf
+	&& !check_can_set_curbuf_forceit((flags & DOBUF_FORCEIT) ? TRUE : FALSE))
+      // disallow navigating to another buffer when 'winfixbuf' is applied
+      return FAIL;
 
     if ((action == DOBUF_GOTO || action == DOBUF_SPLIT)
 						  && (buf->b_flags & BF_DUMMY))
@@ -2221,7 +2193,6 @@ buflist_new(
     if ((flags & BLN_CURBUF) && curbuf_reusable())
     {
 	buf = curbuf;
-	trigger_undo_ftplugin(buf, curwin);
 	// It's like this buffer is deleted.  Watch out for autocommands that
 	// change curbuf!  If that happens, allocate a new buffer anyway.
 	buf_freeall(buf, BFA_WIPE | BFA_DEL);
@@ -2495,7 +2466,6 @@ free_buf_options(
     clear_string_option(&buf->b_p_cinw);
     clear_string_option(&buf->b_p_cot);
     clear_string_option(&buf->b_p_cpt);
-    clear_string_option(&buf->b_p_ise);
 #ifdef FEAT_COMPL_FUNC
     clear_string_option(&buf->b_p_cfu);
     free_callback(&buf->b_cfu_cb);
@@ -2956,8 +2926,6 @@ ExpandBufnames(
 		p = home_replace_save(buf, p);
 	    else
 		p = vim_strsave(p);
-	    if (p == NULL)
-		return FAIL;
 
 	    if (!fuzzy)
 	    {
@@ -3118,7 +3086,7 @@ buflist_findnr(int nr)
 
     if (nr == 0)
 	nr = curwin->w_alt_fnum;
-    vim_snprintf((char *)key, sizeof(key), "%x", nr);
+    sprintf((char *)key, "%x", nr);
     hi = hash_find(&buf_hashtab, key);
 
     if (!HASHITEM_EMPTY(hi))
@@ -3415,8 +3383,6 @@ buflist_list(exarg_T *eap)
     for (buf = firstbuf; buf != NULL && !got_int; buf = buf->b_next)
 #endif
     {
-	char_u	*name;
-
 #ifdef FEAT_TERMINAL
 	job_running = term_job_running(buf->b_term);
 	job_none_open = term_none_open(buf->b_term);
@@ -3445,9 +3411,8 @@ buflist_list(exarg_T *eap)
 		|| (vim_strchr(eap->arg, '#')
 		      && (buf == curbuf || curwin->w_alt_fnum != buf->b_fnum)))
 	    continue;
-	name = buf_spname(buf);
-	if (name != NULL)
-	    vim_strncpy(NameBuff, name, MAXPATHL - 1);
+	if (buf_spname(buf) != NULL)
+	    vim_strncpy(NameBuff, buf_spname(buf), MAXPATHL - 1);
 	else
 	    home_replace(buf, buf->b_fname, NameBuff, MAXPATHL, TRUE);
 	if (message_filtered(NameBuff))
@@ -3472,7 +3437,7 @@ buflist_list(exarg_T *eap)
 	    ro_char = !buf->b_p_ma ? '-' : (buf->b_p_ro ? '=' : ' ');
 
 	msg_putchar('\n');
-	len = (int)vim_snprintf_safelen((char *)IObuff, IOSIZE - 20, "%3d%c%c%c%c%c \"%s\"",
+	len = vim_snprintf((char *)IObuff, IOSIZE - 20, "%3d%c%c%c%c%c \"%s\"",
 		buf->b_fnum,
 		buf->b_p_bl ? ' ' : 'u',
 		buf == curbuf ? '%' :
@@ -3482,6 +3447,8 @@ buflist_list(exarg_T *eap)
 		ro_char,
 		changed_char,
 		NameBuff);
+	if (len > IOSIZE - 20)
+	    len = IOSIZE - 20;
 
 	// put "line 999" in column 40 or after the file name
 	i = 40 - vim_strsize(IObuff);
@@ -3881,81 +3848,83 @@ fileinfo(
     int	dont_truncate)
 {
     char_u	*name;
+    int		n;
+    char	*p;
     char	*buffer;
-    size_t	bufferlen = 0;
+    size_t	len;
 
     buffer = alloc(IOSIZE);
     if (buffer == NULL)
 	return;
 
     if (fullname > 1)	    // 2 CTRL-G: include buffer number
-	bufferlen = vim_snprintf_safelen(buffer, IOSIZE, "buf %d: ", curbuf->b_fnum);
+    {
+	vim_snprintf(buffer, IOSIZE, "buf %d: ", curbuf->b_fnum);
+	p = buffer + STRLEN(buffer);
+    }
+    else
+	p = buffer;
 
-    buffer[bufferlen++] = '"';
-
-    name = buf_spname(curbuf);
-    if (name != NULL)
-	bufferlen += vim_snprintf_safelen(buffer + bufferlen,
-	    IOSIZE - bufferlen, "%s", name);
+    *p++ = '"';
+    if (buf_spname(curbuf) != NULL)
+	vim_strncpy((char_u *)p, buf_spname(curbuf), IOSIZE - (p - buffer) - 1);
     else
     {
 	if (!fullname && curbuf->b_fname != NULL)
 	    name = curbuf->b_fname;
 	else
 	    name = curbuf->b_ffname;
-	home_replace(shorthelp ? curbuf : NULL, name, (char_u *)buffer + bufferlen,
-					  IOSIZE - (int)bufferlen, TRUE);
-	bufferlen += STRLEN(buffer + bufferlen);
+	home_replace(shorthelp ? curbuf : NULL, name, (char_u *)p,
+					  (int)(IOSIZE - (p - buffer)), TRUE);
     }
 
-    bufferlen += vim_snprintf_safelen(
-	buffer + bufferlen,
-	IOSIZE - bufferlen,
-	"\"%s%s%s%s%s%s",
-	curbufIsChanged() ? (shortmess(SHM_MOD)
-	    ?  " [+]" : _(" [Modified]")) : " ",
-	(curbuf->b_flags & BF_NOTEDITED) && !bt_dontwrite(curbuf)
-	    ? _("[Not edited]") : "",
-	(curbuf->b_flags & BF_NEW) && !bt_dontwrite(curbuf)
-	    ? new_file_message() : "",
-	(curbuf->b_flags & BF_READERR) ? _("[Read errors]") : "", curbuf->b_p_ro
-	    ? (shortmess(SHM_RO) ? _("[RO]") : _("[readonly]")) : "",
-	(curbufIsChanged() || (curbuf->b_flags & BF_WRITE_MASK) || curbuf->b_p_ro)
-	    ? " " : "");
-
+    vim_snprintf_add(buffer, IOSIZE, "\"%s%s%s%s%s%s",
+	    curbufIsChanged() ? (shortmess(SHM_MOD)
+					  ?  " [+]" : _(" [Modified]")) : " ",
+	    (curbuf->b_flags & BF_NOTEDITED) && !bt_dontwrite(curbuf)
+					? _("[Not edited]") : "",
+	    (curbuf->b_flags & BF_NEW) && !bt_dontwrite(curbuf)
+					   ? new_file_message() : "",
+	    (curbuf->b_flags & BF_READERR) ? _("[Read errors]") : "",
+	    curbuf->b_p_ro ? (shortmess(SHM_RO) ? _("[RO]")
+						      : _("[readonly]")) : "",
+	    (curbufIsChanged() || (curbuf->b_flags & BF_WRITE_MASK)
+							  || curbuf->b_p_ro) ?
+								    " " : "");
+    // With 32 bit longs and more than 21,474,836 lines multiplying by 100
+    // causes an overflow, thus for large numbers divide instead.
+    if (curwin->w_cursor.lnum > 1000000L)
+	n = (int)(((long)curwin->w_cursor.lnum) /
+				   ((long)curbuf->b_ml.ml_line_count / 100L));
+    else
+	n = (int)(((long)curwin->w_cursor.lnum * 100L) /
+					    (long)curbuf->b_ml.ml_line_count);
     if (curbuf->b_ml.ml_flags & ML_EMPTY)
-	bufferlen += vim_snprintf_safelen(buffer + bufferlen,
-	    IOSIZE - bufferlen, "%s", _(no_lines_msg));
+	vim_snprintf_add(buffer, IOSIZE, "%s", _(no_lines_msg));
     else if (p_ru)
 	// Current line and column are already on the screen -- webb
-	bufferlen += vim_snprintf_safelen(
-	    buffer + bufferlen,
-	    IOSIZE - bufferlen,
-	    NGETTEXT("%ld line --%d%%--", "%ld lines --%d%%--", curbuf->b_ml.ml_line_count),
-	    (long)curbuf->b_ml.ml_line_count,
-	    calc_percentage(curwin->w_cursor.lnum, curbuf->b_ml.ml_line_count));
+	vim_snprintf_add(buffer, IOSIZE,
+		NGETTEXT("%ld line --%d%%--", "%ld lines --%d%%--",
+						   curbuf->b_ml.ml_line_count),
+		(long)curbuf->b_ml.ml_line_count, n);
     else
     {
-	bufferlen += vim_snprintf_safelen(
-	    buffer + bufferlen,
-	    IOSIZE - bufferlen,
-	    _("line %ld of %ld --%d%%-- col "),
-	    (long)curwin->w_cursor.lnum,
-	    (long)curbuf->b_ml.ml_line_count,
-	    calc_percentage(curwin->w_cursor.lnum, curbuf->b_ml.ml_line_count));
-
+	vim_snprintf_add(buffer, IOSIZE,
+		_("line %ld of %ld --%d%%-- col "),
+		(long)curwin->w_cursor.lnum,
+		(long)curbuf->b_ml.ml_line_count,
+		n);
 	validate_virtcol();
-	bufferlen += col_print((char_u *)buffer + bufferlen, IOSIZE - bufferlen,
+	len = STRLEN(buffer);
+	(void)col_print((char_u *)buffer + len, IOSIZE - len,
 		   (int)curwin->w_cursor.col + 1, (int)curwin->w_virtcol + 1);
     }
 
-    (void)append_arg_number(curwin, (char_u *)buffer + bufferlen,
-	IOSIZE - bufferlen, !shortmess(SHM_FILE));
+    (void)append_arg_number(curwin, (char_u *)buffer, IOSIZE,
+							 !shortmess(SHM_FILE));
 
     if (dont_truncate)
     {
-	int	n;
-
 	// Temporarily set msg_scroll to avoid the message being truncated.
 	// First call msg_start() to get the message in the right place.
 	msg_start();
@@ -3966,7 +3935,7 @@ fileinfo(
     }
     else
     {
-	char	*p = msg_trunc_attr(buffer, FALSE, 0);
+	p = msg_trunc_attr(buffer, FALSE, 0);
 	if (restart_edit != 0 || (msg_scrolled && !need_wait_return))
 	    // Need to repeat the message after redrawing when:
 	    // - When restart_edit is set (otherwise there will be a delay
@@ -3987,9 +3956,9 @@ col_print(
     int	    vcol)
 {
     if (col == vcol)
-	return (int)vim_snprintf_safelen((char *)buf, buflen, "%d", col);
+	return vim_snprintf((char *)buf, buflen, "%d", col);
 
-    return (int)vim_snprintf_safelen((char *)buf, buflen, "%d-%d", col, vcol);
+    return vim_snprintf((char *)buf, buflen, "%d-%d", col, vcol);
 }
 
 static char_u *lasttitle = NULL;
@@ -4001,11 +3970,14 @@ static char_u *lasticon = NULL;
     void
 maketitle(void)
 {
+    char_u	*p;
     char_u	*title_str = NULL;
     char_u	*icon_str = NULL;
+    int		maxlen = 0;
+    int		len;
     int		mustset;
     char_u	buf[IOSIZE];
-    size_t	buflen = 0;
+    int		off;
 
     if (!redrawing())
     {
@@ -4020,8 +3992,6 @@ maketitle(void)
 
     if (p_title)
     {
-	int maxlen = 0;
-
 	if (p_titlelen > 0)
 	{
 	    maxlen = p_titlelen * Columns / 100;
@@ -4040,90 +4010,46 @@ maketitle(void)
 	    else
 #endif
 		title_str = p_titlestring;
-	    buflen = STRLEN(title_str);
 	}
 	else
 	{
-	    char_u  *p;
+	    // format: "fname + (path) (1 of 2) - VIM"
 
-	    // format: "<filename> [flags] <(path)> [argument info] <- servername>"
-	    // example:
-	    //	    buffer.c + (/home/vim/src) (1 of 2) - VIM
-
-	    // reserve some space for different parts of the title.
-	    // use sizeof() to introduce 'size_t' so we don't have to
-	    // cast sizes to it.
-#define SPACE_FOR_FNAME (sizeof(buf) - 100)
-#define SPACE_FOR_DIR   (sizeof(buf) - 20)
-#define SPACE_FOR_ARGNR (sizeof(buf) - 10)  // at least room for " - VIM"
-
-	    // file name
+#define SPACE_FOR_FNAME (IOSIZE - 100)
+#define SPACE_FOR_DIR   (IOSIZE - 20)
+#define SPACE_FOR_ARGNR (IOSIZE - 10)  // at least room for " - VIM"
 	    if (curbuf->b_fname == NULL)
-		buflen = vim_snprintf_safelen((char *)buf,
-		    SPACE_FOR_FNAME, "%s", _("[No Name]"));
+		vim_strncpy(buf, (char_u *)_("[No Name]"), SPACE_FOR_FNAME);
 #ifdef FEAT_TERMINAL
 	    else if (curbuf->b_term != NULL)
-		buflen = vim_snprintf_safelen((char *)buf,
-		    SPACE_FOR_FNAME, "%s",
-		    term_get_status_text(curbuf->b_term));
+	    {
+		vim_strncpy(buf, term_get_status_text(curbuf->b_term),
+							      SPACE_FOR_FNAME);
+	    }
 #endif
 	    else
 	    {
-		buflen = vim_snprintf_safelen((char *)buf,
-		    SPACE_FOR_FNAME, "%s",
-		    ((p = transstr(gettail(curbuf->b_fname))) != NULL)
-			? p
-			: (char_u *)"");
+		p = transstr(gettail(curbuf->b_fname));
+		vim_strncpy(buf, p, SPACE_FOR_FNAME);
 		vim_free(p);
 	    }
 
-	    // flags
 #ifdef FEAT_TERMINAL
 	    if (curbuf->b_term == NULL)
 #endif
-	    {
 		switch (bufIsChanged(curbuf)
 			+ (curbuf->b_p_ro * 2)
 			+ (!curbuf->b_p_ma * 4))
 		{
-		    case 1:
-			// file was modified
-			buflen += vim_snprintf_safelen(
-			    (char *)buf + buflen,
-			    sizeof(buf) - buflen, " +");
-			break;
-		    case 2:
-			// file is readonly
-			buflen += vim_snprintf_safelen(
-			    (char *)buf + buflen,
-			    sizeof(buf) - buflen, " =");
-			break;
-		    case 3:
-			// file was modified and is readonly
-			buflen += vim_snprintf_safelen(
-			    (char *)buf + buflen,
-			    sizeof(buf) - buflen, " =+");
-			break;
+		    case 1: STRCAT(buf, " +"); break;
+		    case 2: STRCAT(buf, " ="); break;
+		    case 3: STRCAT(buf, " =+"); break;
 		    case 4:
-		    case 6:
-			// file cannot be modified
-			buflen += vim_snprintf_safelen(
-			    (char *)buf + buflen,
-			    sizeof(buf) - buflen, " -");
-			break;
+		    case 6: STRCAT(buf, " -"); break;
 		    case 5:
-		    case 7:
-			// file cannot be modified but was modified
-			buflen += vim_snprintf_safelen(
-			    (char *)buf + buflen,
-			    sizeof(buf) - buflen, " -+");
-			break;
-		    default:
-			break;
+		    case 7: STRCAT(buf, " -+"); break;
 		}
-	    }
 
-	    // path (surrounded by '()')
 	    if (curbuf->b_fname != NULL
 #ifdef FEAT_TERMINAL
 		    && curbuf->b_term == NULL
@@ -4131,69 +4057,61 @@ maketitle(void)
 		    )
 	    {
 		// Get path of file, replace home dir with ~
-		buflen += vim_snprintf_safelen((char *)buf + buflen,
-		    sizeof(buf) - buflen, " (");
-
+		off = (int)STRLEN(buf);
+		buf[off++] = ' ';
+		buf[off++] = '(';
 		home_replace(curbuf, curbuf->b_ffname,
-		    buf + buflen, (int)(SPACE_FOR_DIR - buflen), TRUE);
-
+					buf + off, SPACE_FOR_DIR - off, TRUE);
 #ifdef BACKSLASH_IN_FILENAME
 		// avoid "c:/name" to be reduced to "c"
-		if (SAFE_isalpha(buf[buflen]) && buf[buflen + 1] == ':')
-		    buflen += 2;			// step over "c:"
+		if (SAFE_isalpha(buf[off]) && buf[off + 1] == ':')
+		    off += 2;
 #endif
-
-		// determine if we have a help or normal buffer
-		p = gettail_sep(buf + buflen);
-		if (p == buf + buflen)
+		// remove the file name
+		p = gettail_sep(buf + off);
+		if (p == buf + off)
 		{
-		    // help buffer
-		    buflen += vim_snprintf_safelen((char *)buf + buflen,
-			SPACE_FOR_DIR - buflen, "%s)", _("help"));
+		    // must be a help buffer
+		    vim_strncpy(buf + off, (char_u *)_("help"),
+					   (size_t)(SPACE_FOR_DIR - off - 1));
+		}
+		else
+		    *p = NUL;
+
+		// Translate unprintable chars and concatenate.  Keep some
+		// room for the server name.  When there is no room (very long
+		// file name) use (...).
+		if (off < SPACE_FOR_DIR)
+		{
+		    p = transstr(buf + off);
+		    vim_strncpy(buf + off, p, (size_t)(SPACE_FOR_DIR - off));
+		    vim_free(p);
 		}
 		else
 		{
-		    // normal buffer
-
-		    // Translate unprintable chars and concatenate.  Keep some
-		    // room for the server name.  When there is no room (very long
-		    // file name) use (...).
-		    if (buflen < SPACE_FOR_DIR)
-		    {
-			// remove the file name
-			*p = NUL;
-
-			buflen += vim_snprintf_safelen((char *)buf + buflen,
-			    SPACE_FOR_DIR - buflen, "%s)",
-			    ((p = transstr(buf + buflen)) != NULL)
-				? p
-				: (char_u *)"");
-			vim_free(p);
-		    }
-		    else
-			buflen += vim_snprintf_safelen((char *)buf + buflen,
-			    SPACE_FOR_ARGNR - buflen, "...)");
+		    vim_strncpy(buf + off, (char_u *)"...",
+					     (size_t)(SPACE_FOR_ARGNR - off));
 		}
+		STRCAT(buf, ")");
 	    }
 
-	    // argument info
-	    buflen += append_arg_number(curwin, buf + buflen,
-		SPACE_FOR_ARGNR - buflen, FALSE);
+	    append_arg_number(curwin, buf, SPACE_FOR_ARGNR, FALSE);
 
-	    // servername
-	    buflen += vim_snprintf_safelen((char *)buf + buflen,
-		sizeof(buf) - buflen, " - %s",
 #if defined(FEAT_CLIENTSERVER)
-		(serverName != NULL)
-		    ? serverName :
+	    if (serverName != NULL)
+	    {
+		STRCAT(buf, " - ");
+		vim_strcat(buf, serverName, IOSIZE);
+	    }
+	    else
 #endif
-		    (char_u *)"VIM");
+		STRCAT(buf, " - VIM");
 
 	    if (maxlen > 0)
 	    {
 		// make it shorter by removing a bit in the middle
 		if (vim_strsize(buf) > maxlen)
-		    trunc_string(buf, buf, maxlen, sizeof(buf));
+		    trunc_string(buf, buf, maxlen, IOSIZE);
 	    }
 	}
     }
@@ -4214,23 +4132,22 @@ maketitle(void)
 	}
 	else
 	{
-	    char_u  *name;
-	    int	    namelen;
-
-	    name = buf_spname(curbuf);
-	    if (name == NULL)
-		name = gettail(curbuf->b_ffname);
+	    if (buf_spname(curbuf) != NULL)
+		p = buf_spname(curbuf);
+	    else		    // use file name only in icon
+		p = gettail(curbuf->b_ffname);
+	    *icon_str = NUL;
 	    // Truncate name at 100 bytes.
-	    namelen = (int)STRLEN(name);
-	    if (namelen > 100)
+	    len = (int)STRLEN(p);
+	    if (len > 100)
 	    {
-		namelen -= 100;
+		len -= 100;
 		if (has_mbyte)
-		    namelen += (*mb_tail_off)(name, name + namelen) + 1;
-		name += namelen;
+		    len += (*mb_tail_off)(p, p + len) + 1;
+		p += len;
 	    }
-	    STRCPY(buf, name);
-	    trans_characters(buf, sizeof(buf));
+	    STRCPY(icon_str, p);
+	    trans_characters(icon_str, IOSIZE);
 	}
     }
 
@@ -4343,15 +4260,18 @@ build_stl_str_hl(
 {
     linenr_T	lnum;
     colnr_T	len;
-    size_t	outputlen;	// length of out[] used (excluding the NUL)
     char_u	*p;
     char_u	*s;
+    char_u	*t;
     int		byteval;
 #ifdef FEAT_EVAL
     int		use_sandbox;
+    win_T	*save_curwin;
+    buf_T	*save_curbuf;
     int		save_VIsual_active;
 #endif
     int		empty_line;
+    colnr_T	virtcol;
     long	l;
     long	n;
     int		prevchar_isflag;
@@ -4363,6 +4283,8 @@ build_stl_str_hl(
     int		width;
     int		itemcnt;
     int		curitem;
+    int		group_end_userhl;
+    int		group_start_userhl;
     int		groupdepth;
 #ifdef FEAT_EVAL
     int		evaldepth;
@@ -4374,6 +4296,7 @@ build_stl_str_hl(
     char_u	opt;
 #define TMPLEN 70
     char_u	buf_tmp[TMPLEN];
+    char_u	win_tmp[TMPLEN];
     char_u	*usefmt = fmt;
     stl_hlrec_T *sp;
     int		save_redraw_not_allowed = redraw_not_allowed;
@@ -4496,7 +4419,7 @@ build_stl_str_hl(
 					    sizeof(int) * new_len);
 	    if (new_separator_locs == NULL)
 		break;
-	    stl_separator_locations = new_separator_locs;
+	    stl_separator_locations = new_separator_locs;;
 
 	    stl_items_len = new_len;
 	}
@@ -4545,8 +4468,6 @@ build_stl_str_hl(
 	}
 	if (*s == ')')
 	{
-	    char_u  *t;
-
 	    s++;
 	    if (groupdepth < 1)
 		continue;
@@ -4558,11 +4479,9 @@ build_stl_str_hl(
 	    if (curitem > stl_groupitem[groupdepth] + 1
 		    && stl_items[stl_groupitem[groupdepth]].stl_minwid == 0)
 	    {
-		int group_start_userhl = 0;
-		int group_end_userhl = 0;
-
 		// remove group if all items are empty and highlight group
 		// doesn't change
+		group_start_userhl = group_end_userhl = 0;
 		for (n = stl_groupitem[groupdepth] - 1; n >= 0; n--)
 		{
 		    if (stl_items[n].stl_type == Highlight)
@@ -4764,16 +4683,12 @@ build_stl_str_hl(
 	case STL_FILEPATH:
 	case STL_FULLPATH:
 	case STL_FILENAME:
-	{
-	    char_u  *name;
-
 	    fillable = FALSE;	// don't change ' ' to fillchar
-	    name = buf_spname(wp->w_buffer);
-	    if (name != NULL)
-		vim_strncpy(NameBuff, name, MAXPATHL - 1);
+	    if (buf_spname(wp->w_buffer) != NULL)
+		vim_strncpy(NameBuff, buf_spname(wp->w_buffer), MAXPATHL - 1);
 	    else
 	    {
-		char_u	*t = (opt == STL_FULLPATH) ? wp->w_buffer->b_ffname
+		t = (opt == STL_FULLPATH) ? wp->w_buffer->b_ffname
 					  : wp->w_buffer->b_fname;
 		home_replace(wp->w_buffer, t, NameBuff, MAXPATHL, TRUE);
 	    }
@@ -4783,17 +4698,13 @@ build_stl_str_hl(
 	    else
 		str = gettail(NameBuff);
 	    break;
-	}
 
 	case STL_VIM_EXPR: // '{'
 	{
 #ifdef FEAT_EVAL
-	    char_u  *block_start = s - 1;
+	    char_u *block_start = s - 1;
 #endif
-	    int	    reevaluate = (*s == '%');
-	    char_u  *t;
-	    buf_T   *save_curbuf;
-	    win_T   *save_curwin;
+	    int reevaluate = (*s == '%');
 
 	    if (reevaluate)
 		s++;
@@ -4806,16 +4717,16 @@ build_stl_str_hl(
 		break;
 	    s++;
 	    if (reevaluate)
-		p[-1] = NUL; // remove the % at the end of %{% expr %}
+		p[-1] = 0; // remove the % at the end of %{% expr %}
 	    else
-		*p = NUL;
+		*p = 0;
 	    p = t;
 #ifdef FEAT_EVAL
 	    vim_snprintf((char *)buf_tmp, sizeof(buf_tmp),
 							 "%d", curbuf->b_fnum);
 	    set_internal_string_var((char_u *)"g:actual_curbuf", buf_tmp);
-	    vim_snprintf((char *)buf_tmp, sizeof(buf_tmp), "%d", curwin->w_id);
-	    set_internal_string_var((char_u *)"g:actual_curwin", buf_tmp);
+	    vim_snprintf((char *)win_tmp, sizeof(win_tmp), "%d", curwin->w_id);
+	    set_internal_string_var((char_u *)"g:actual_curwin", win_tmp);
 
 	    save_curbuf = curbuf;
 	    save_curwin = curwin;
@@ -4834,7 +4745,7 @@ build_stl_str_hl(
 	    do_unlet((char_u *)"g:actual_curbuf", TRUE);
 	    do_unlet((char_u *)"g:actual_curwin", TRUE);
 
-	    if (str != NULL && *str != NUL)
+	    if (str != NULL && *str != 0)
 	    {
 		if (*skipdigits(str) == NUL)
 		{
@@ -4846,7 +4757,7 @@ build_stl_str_hl(
 
 	    // If the output of the expression needs to be evaluated
 	    // replace the %{} block with the result of evaluation
-	    if (reevaluate && str != NULL && *str != NUL
+	    if (reevaluate && str != NULL && *str != 0
 		    && strchr((const char *)str, '%') != NULL
 		    && evaldepth < MAX_STL_EVAL_DEPTH)
 	    {
@@ -4856,29 +4767,25 @@ build_stl_str_hl(
 		size_t new_fmt_len = parsed_usefmt
 						 + str_length + fmt_length + 3;
 		char_u *new_fmt = (char_u *)alloc(new_fmt_len * sizeof(char_u));
+		char_u *new_fmt_p = new_fmt;
 
-		if (new_fmt != NULL)
-		{
-		    char_u *new_fmt_p = new_fmt;
+		new_fmt_p = (char_u *)memcpy(new_fmt_p, usefmt, parsed_usefmt)
+							       + parsed_usefmt;
+		new_fmt_p = (char_u *)memcpy(new_fmt_p , str, str_length)
+								  + str_length;
+		new_fmt_p = (char_u *)memcpy(new_fmt_p, "%}", 2) + 2;
+		new_fmt_p = (char_u *)memcpy(new_fmt_p , s, fmt_length)
+								  + fmt_length;
+		*new_fmt_p = 0;
+		new_fmt_p = NULL;
 
-		    new_fmt_p = (char_u *)memcpy(new_fmt_p, usefmt, parsed_usefmt)
-								   + parsed_usefmt;
-		    new_fmt_p = (char_u *)memcpy(new_fmt_p , str, str_length)
-								      + str_length;
-		    new_fmt_p = (char_u *)memcpy(new_fmt_p, "%}", 2) + 2;
-		    new_fmt_p = (char_u *)memcpy(new_fmt_p , s, fmt_length)
-								      + fmt_length;
-		    *new_fmt_p = 0;
-		    new_fmt_p = NULL;
-
-		    if (usefmt != fmt)
-			vim_free(usefmt);
-		    VIM_CLEAR(str);
-		    usefmt = new_fmt;
-		    s = usefmt + parsed_usefmt;
-		    evaldepth++;
-		    continue;
-		}
+		if (usefmt != fmt)
+		    vim_free(usefmt);
+		VIM_CLEAR(str);
+		usefmt = new_fmt;
+		s = usefmt + parsed_usefmt;
+		evaldepth++;
+		continue;
 	    }
 #endif
 	    break;
@@ -4899,9 +4806,7 @@ build_stl_str_hl(
 
 	case STL_VIRTCOL:
 	case STL_VIRTCOL_ALT:
-	{
-	    colnr_T virtcol = wp->w_virtcol + 1;
-
+	    virtcol = wp->w_virtcol + 1;
 	    // Don't display %V if it's the same as %c.
 	    if (opt == STL_VIRTCOL_ALT
 		    && (virtcol == (colnr_T)((State & MODE_INSERT) == 0
@@ -4909,10 +4814,10 @@ build_stl_str_hl(
 		break;
 	    num = (long)virtcol;
 	    break;
-	}
 
 	case STL_PERCENTAGE:
-	    num = calc_percentage((long)wp->w_cursor.lnum, (long)wp->w_buffer->b_ml.ml_line_count);
+	    num = (int)(((long)wp->w_cursor.lnum * 100L) /
+			(long)wp->w_buffer->b_ml.ml_line_count);
 	    break;
 
 	case STL_ALTPERCENT:
@@ -4927,8 +4832,8 @@ build_stl_str_hl(
 
 	case STL_ARGLISTSTAT:
 	    fillable = FALSE;
-	    buf_tmp[0] = NUL;
-	    if (append_arg_number(wp, buf_tmp, sizeof(buf_tmp), FALSE) > 0)
+	    buf_tmp[0] = 0;
+	    if (append_arg_number(wp, buf_tmp, (int)sizeof(buf_tmp), FALSE))
 		str = buf_tmp;
 	    break;
 
@@ -5002,8 +4907,6 @@ build_stl_str_hl(
 	    if (*wp->w_buffer->b_p_ft != NUL
 		    && STRLEN(wp->w_buffer->b_p_ft) < TMPLEN - 2)
 	    {
-		char_u	*t;
-
 		vim_snprintf((char *)buf_tmp, sizeof(buf_tmp), ",%s",
 							wp->w_buffer->b_p_ft);
 		for (t = buf_tmp; *t != 0; t++)
@@ -5046,30 +4949,26 @@ build_stl_str_hl(
 	    break;
 
 	case STL_HIGHLIGHT:
+	    t = s;
+	    while (*s != '#' && *s != NUL)
+		++s;
+	    if (*s == '#')
 	    {
-		char_u  *t = s;
-
-		while (*s != '#' && *s != NUL)
-		    ++s;
-		if (*s == '#')
-		{
-		    stl_items[curitem].stl_type = Highlight;
-		    stl_items[curitem].stl_start = p;
-		    stl_items[curitem].stl_minwid = -syn_namen2id(t, (int)(s - t));
-		    curitem++;
-		}
-		if (*s != NUL)
-		    ++s;
-		continue;
+		stl_items[curitem].stl_type = Highlight;
+		stl_items[curitem].stl_start = p;
+		stl_items[curitem].stl_minwid = -syn_namen2id(t, (int)(s - t));
+		curitem++;
 	    }
+	    if (*s != NUL)
+		++s;
+	    continue;
 	}
 
 	stl_items[curitem].stl_start = p;
 	stl_items[curitem].stl_type = Normal;
 	if (str != NULL && *str)
 	{
-	    char_u  *t = str;
-
+	    t = str;
 	    if (itemisflag)
 	    {
 		if ((t[0] && t[1])
@@ -5124,13 +5023,13 @@ build_stl_str_hl(
 	}
 	else if (num >= 0)
 	{
-	    int	    nbase = (base == 'D' ? 10 : (base == 'O' ? 8 : 16));
-	    char_u  nstr[20];
-	    char_u  *t = nstr;
+	    int nbase = (base == 'D' ? 10 : (base == 'O' ? 8 : 16));
+	    char_u nstr[20];
 
 	    if (p + 20 >= out + outlen)
 		break;		// not sufficient space
 	    prevchar_isitem = TRUE;
+	    t = nstr;
 	    if (opt == STL_VIRTCOL_ALT)
 	    {
 		*t++ = '-';
@@ -5141,13 +5040,12 @@ build_stl_str_hl(
 		*t++ = '0';
 	    *t++ = '*';
 	    *t++ = nbase == 16 ? base : (char_u)(nbase == 8 ? 'o' : 'd');
-	    *t = NUL;
+	    *t = 0;
 
 	    for (n = num, l = 1; n >= nbase; n /= nbase)
 		l++;
 	    if (opt == STL_VIRTCOL_ALT)
 		l++;
-
 	    if (l > maxwid)
 	    {
 		l += 2;
@@ -5157,13 +5055,14 @@ build_stl_str_hl(
 		*t++ = '>';
 		*t++ = '%';
 		*t = t[-3];
-		*++t = NUL;
-		p += vim_snprintf_safelen((char *)p, outlen - (p - out),
-		    (char *)nstr, 0, num, n);
+		*++t = 0;
+		vim_snprintf((char *)p, outlen - (p - out), (char *)nstr,
+								   0, num, n);
 	    }
 	    else
-		p += vim_snprintf_safelen((char *)p, outlen - (p - out),
-		    (char *)nstr, minwid, num);
+		vim_snprintf((char *)p, outlen - (p - out), (char *)nstr,
+								 minwid, num);
+	    p += STRLEN(p);
 	}
 	else
 	    stl_items[curitem].stl_type = Empty;
@@ -5176,7 +5075,6 @@ build_stl_str_hl(
 	curitem++;
     }
     *p = NUL;
-    outputlen = (size_t)(p - out);
     itemcnt = curitem;
 
 #ifdef FEAT_EVAL
@@ -5233,12 +5131,10 @@ build_stl_str_hl(
 		    break;
 	    itemcnt = l;
 	    *s++ = '>';
-	    *s = NUL;
+	    *s = 0;
 	}
 	else
 	{
-	    char_u  *end = out + outputlen;
-
 	    if (has_mbyte)
 	    {
 		n = 0;
@@ -5251,8 +5147,7 @@ build_stl_str_hl(
 	    else
 		n = width - maxwidth + 1;
 	    p = s + n;
-	    mch_memmove(s + 1, p, (size_t)(end - p) + 1);	// +1 for NUL
-	    end -= (size_t)(p - (s + 1));
+	    STRMOVE(s + 1, p);
 	    *s = '<';
 
 	    --n;	// count the '<'
@@ -5267,15 +5162,14 @@ build_stl_str_hl(
 	    // Fill up for half a double-wide character.
 	    while (++width < maxwidth)
 	    {
-		s = end;
+		s = s + STRLEN(s);
 		MB_CHAR2BYTES(fillchar, s);
 		*s = NUL;
-		end = s;
 	    }
 	}
 	width = maxwidth;
     }
-    else if (width < maxwidth && outputlen + maxwidth - width + 1 < outlen)
+    else if (width < maxwidth && STRLEN(out) + maxwidth - width + 1 < outlen)
     {
 	// Find how many separators there are, which we will use when
 	// figuring out how many groups there are.
@@ -5376,7 +5270,7 @@ build_stl_str_hl(
 #endif // FEAT_STL_OPT
 
 /*
- * Get relative cursor position in window into "buf[]", in the localized
+ * Get relative cursor position in window into "buf[buflen]", in the localized
  * percentage form like %99, 99%; using "Top", "Bot" or "All" when appropriate.
  */
     int
@@ -5387,6 +5281,7 @@ get_rel_pos(
 {
     long	above; // number of lines above window
     long	below; // number of lines below window
+    int		len;
 
     if (buflen < 3) // need at least 3 chars for writing
 	return 0;
@@ -5400,31 +5295,42 @@ get_rel_pos(
 #endif
     below = wp->w_buffer->b_ml.ml_line_count - wp->w_botline + 1;
     if (below <= 0)
-	return (int)vim_snprintf_safelen((char *)buf, buflen,
-	    "%s", (above == 0) ? _("All") : _("Bot"));
+	len = vim_snprintf((char *)buf, buflen, "%s", (above == 0) ? _("All") : _("Bot"));
+    else if (above <= 0)
+	len = vim_snprintf((char *)buf, buflen, "%s", _("Top"));
+    else
+    {
+	int perc = (above > 1000000L)
+		    ?  (int)(above / ((above + below) / 100L))
+		    :  (int)(above * 100L / (above + below));
 
-    if (above <= 0)
-	return (int)vim_snprintf_safelen((char *)buf, buflen,
-	    "%s", _("Top"));
+	// localized percentage value
+	len = vim_snprintf((char *)buf, buflen, _("%s%d%%"), (perc < 10) ? " " : "", perc);
+    }
+    if (len < 0)
+    {
+	buf[0] = NUL;
+	len = 0;
+    }
+    else if (len > buflen - 1)
+	len = buflen - 1;
 
-    // localized percentage value
-    return (int)vim_snprintf_safelen((char *)buf, buflen,
-	_("%2d%%"), calc_percentage(above, above + below));
+    return len;
 }
 
 /*
- * Append (file 2 of 8) to "buf[]", if editing more than one file.
- * Return the number of characters appended.
+ * Append (file 2 of 8) to "buf[buflen]", if editing more than one file.
+ * Return TRUE if it was appended.
  */
     static int
 append_arg_number(
     win_T	*wp,
     char_u	*buf,
-    size_t	buflen,
+    int		buflen,
     int		add_file)	// Add "file" before the arg number
 {
     if (ARGCOUNT <= 1)		// nothing to do
-	return 0;
+	return FALSE;
 
     char *msg;
     switch ((wp->w_arg_idx_invalid ? 1 : 0) + (add_file ? 2 : 0))
@@ -5435,8 +5341,10 @@ append_arg_number(
 	case 3: msg = _(" (file (%d) of %d)"); break;
     }
 
-    return (int)vim_snprintf_safelen((char *)buf, buflen, msg,
+    char_u *p = buf + STRLEN(buf);	// go to the end of the buffer
+    vim_snprintf((char *)p, (size_t)(buflen - (p - buf)), msg,
 						  wp->w_arg_idx + 1, ARGCOUNT);
+    return TRUE;
 }
 
 /*
@@ -5776,16 +5684,17 @@ chk_modeline(
     int		flags)		// Same as for do_modelines().
 {
     char_u	*s;
-    char_u	*line_end;		// point to the end of the line
     char_u	*e;
+    char_u	*linecopy;		// local copy of any modeline found
     int		prev;
+    int		vers;
+    int		end;
     int		retval = OK;
+    sctx_T	save_current_sctx;
     ESTACK_CHECK_DECLARATION;
 
     prev = -1;
-    s = ml_get(lnum);
-    line_end = s + ml_get_len(lnum);
-    for (; *s != NUL; ++s)
+    for (s = ml_get(lnum); *s != NUL; ++s)
     {
 	if (prev == -1 || vim_isspace(prev))
 	{
@@ -5795,8 +5704,6 @@ chk_modeline(
 	    // Accept both "vim" and "Vim".
 	    if ((s[0] == 'v' || s[0] == 'V') && s[1] == 'i' && s[2] == 'm')
 	    {
-		int vers;
-
 		if (s[3] == '<' || s[3] == '=' || s[3] == '>')
 		    e = s + 4;
 		else
@@ -5818,22 +5725,13 @@ chk_modeline(
 
     if (*s)
     {
-	size_t	len;
-	char_u	*linecopy;		// local copy of any modeline found
-	int	end;
-
 	do				// skip over "ex:", "vi:" or "vim:"
 	    ++s;
 	while (s[-1] != ':');
 
-	len = (size_t)(line_end - s);		// remember the line length
-						// so we can restore 'line_end'
-						// after the copy
-	s = linecopy = vim_strnsave(s, len);	// copy the line, it will change
+	s = linecopy = vim_strsave(s);	// copy the line, it will change
 	if (linecopy == NULL)
 	    return FAIL;
-
-	line_end = s + len;			// restore 'line_end'
 
 	// prepare for emsg()
 	estack_push(ETYPE_MODELINE, (char_u *)"modelines", lnum);
@@ -5852,10 +5750,7 @@ chk_modeline(
 	     */
 	    for (e = s; *e != ':' && *e != NUL; ++e)
 		if (e[0] == '\\' && e[1] == ':')
-		{
-		    mch_memmove(e, e + 1, (size_t)(line_end - (e + 1)) + 1);	// +1 for NUL
-		    --line_end;
-		}
+		    STRMOVE(e, e + 1);
 	    if (*e == NUL)
 		end = TRUE;
 
@@ -5872,15 +5767,15 @@ chk_modeline(
 		if (*e != ':')		// no terminating ':'?
 		    break;
 		end = TRUE;
-		s += (*(s + 2) == ' ') ? 3 : 4;
+		s = vim_strchr(s, ' ') + 1;
 	    }
 	    *e = NUL;			// truncate the set command
 
 	    if (*s != NUL)		// skip over an empty "::"
 	    {
 		int secure_save = secure;
-		sctx_T	save_current_sctx = current_sctx;
 
+		save_current_sctx = current_sctx;
 		current_sctx.sc_version = 1;
 #ifdef FEAT_EVAL
 		current_sctx.sc_sid = SID_MODELINE;
@@ -5898,8 +5793,7 @@ chk_modeline(
 		if (retval == FAIL)		// stop if error found
 		    break;
 	    }
-	    s = (e == line_end) ? e : e + 1;	// advance to next part
-						// careful not to go off the end
+	    s = e + 1;			// advance to next part
 	}
 
 	ESTACK_CHECK_NOW;

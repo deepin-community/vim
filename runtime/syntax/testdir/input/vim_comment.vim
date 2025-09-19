@@ -31,10 +31,6 @@ autocmd BufNewFile * {
   \ continuing comment
   \ continuing comment
 
-let foo = 42 " commment
-  \ continuing comment
-  \ continuing comment
-
 " :Foo
       \ arg1
       "\ comment

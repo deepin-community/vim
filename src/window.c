@@ -97,14 +97,14 @@ static int close_disallowed = 0;
  * make sure the previously selected window is still there.
  * Must be matched with exactly one call to window_layout_unlock()!
  */
-    void
+    static void
 window_layout_lock(void)
 {
     ++split_disallowed;
     ++close_disallowed;
 }
 
-    void
+    static void
 window_layout_unlock(void)
 {
     --split_disallowed;
@@ -3285,8 +3285,7 @@ may_trigger_win_scrolled_resized(void)
     {
 	// Create the list for v:event.windows before making the snapshot.
 	windows_list = list_alloc_with_items(size_count);
-	if (windows_list != NULL)
-	    check_window_scroll_resize(NULL, NULL, NULL, windows_list, NULL);
+	(void)check_window_scroll_resize(NULL, NULL, NULL, windows_list, NULL);
     }
 
     dict_T *scroll_dict = NULL;
@@ -3297,7 +3296,8 @@ may_trigger_win_scrolled_resized(void)
 	if (scroll_dict != NULL)
 	{
 	    scroll_dict->dv_refcount = 1;
-	    check_window_scroll_resize(NULL, NULL, NULL, NULL, scroll_dict);
+	    (void)check_window_scroll_resize(NULL, NULL, NULL, NULL,
+								  scroll_dict);
 	}
     }
 #endif
@@ -3314,11 +3314,7 @@ may_trigger_win_scrolled_resized(void)
     recursive = TRUE;
 
     // If both are to be triggered do WinResized first.
-    if (trigger_resize
-#ifdef FEAT_EVAL
-	    && windows_list != NULL
-#endif
-	    )
+    if (trigger_resize)
     {
 #ifdef FEAT_EVAL
 	save_v_event_T  save_v_event;
@@ -5643,6 +5639,10 @@ win_enter_ext(win_T *wp, int flags)
 	did_decrement = TRUE;
     }
 #endif
+#ifdef FEAT_TERMINAL
+    if (bt_terminal(curwin->w_buffer))
+	update_topline();
+#endif
 
     win_fix_current_dir();
 
@@ -7034,7 +7034,7 @@ win_fix_scroll(int resize)
 	    {
 		int diff = (wp->w_winrow - wp->w_prev_winrow)
 					  + (wp->w_height - wp->w_prev_height);
-		pos_T cursor = wp->w_cursor;
+		linenr_T lnum = wp->w_cursor.lnum;
 		wp->w_cursor.lnum = wp->w_botline - 1;
 
 		//  Add difference in height and row to botline.
@@ -7048,8 +7048,7 @@ win_fix_scroll(int resize)
 		wp->w_fraction = FRACTION_MULT;
 		scroll_to_fraction(wp, wp->w_prev_height);
 
-		wp->w_cursor = cursor;
-		wp->w_valid &= ~VALID_WCOL;
+		wp->w_cursor.lnum = lnum;
 	    }
 	    else if (wp == curwin)
 		wp->w_valid &= ~VALID_CROW;

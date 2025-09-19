@@ -1,7 +1,7 @@
 " Vim support file to detect file types
 "
 " Maintainer:	The Vim Project <https://github.com/vim/vim>
-" Last Change:	2025 May 02
+" Last Change:	2025 Mar 18
 " Former Maintainer:	Bram Moolenaar <Bram@vim.org>
 
 " Listen very carefully, I will say this only once
@@ -53,7 +53,7 @@ endfunc
 
 " Vim help file, set ft explicitly, because 'modeline' might be off
 au BufNewFile,BufRead */doc/*.txt
-	\  if getline('$') =~ '\%(^\|\s\)vim:\%(.*\%(:\|\s\)\)\?\%(ft\|filetype\)=help\%(:\|\s\|$\)'
+	\  if getline('$') =~ '\(^\|\s\)vim:.*\<\(ft\|filetype\)=help\>'
 	\|   setf help
 	\| endif
 
@@ -429,15 +429,13 @@ if has("fname_case")
 	au BufNewFile,BufRead *.C,*.H if !&fileignorecase | setf cpp | endif
 endif
 
-" MS files (ixx: C++ module interface file, Microsoft Project file)
-au BufNewFile,BufRead *.ixx,*.mpp setf cpp
-
 " C++ 20 modules (clang)
 " https://clang.llvm.org/docs/StandardCPlusPlusModules.html#file-name-requirement
 au BufNewFile,BufRead *.cppm,*.ccm,*.cxxm,*.c++m setf cpp
 
-" .h files can be C, C++, Ch, Objective-C, or Objective-C++.
-" Set g_filetype_h to set a different filetype
+" .h files can be C, Ch C++, ObjC or ObjC++.
+" Set c_syntax_for_h if you want C, ch_syntax_for_h if you want Ch. ObjC is
+" detected automatically.
 au BufNewFile,BufRead *.h			call dist#ft#FTheader()
 
 " Ch (CHscript)
@@ -562,9 +560,6 @@ au BufNewFile,BufRead *.cu,*.cuh		setf cuda
 
 " Cue
 au BufNewFile,BufRead *.cue			setf cue
-
-" DAX
-au BufNewFile,BufRead *.dax			setf dax
 
 " Debian devscripts
 au BufNewFile,BufRead devscripts.conf,.devscripts	setf sh
@@ -1022,14 +1017,6 @@ au BufNewFile,BufRead *.gjs			setf javascript.glimmer
 
 " Gnuplot scripts
 au BufNewFile,BufRead *.gpi,*.gnuplot,.gnuplot_history	setf gnuplot
-
-" GNU Radio Companion files
-au BufNewFile,BufRead *.grc
-	\ if getline(1) =~# '<?xml' |
-	\   setf xml |
-	\ else |
-	\   setf yaml |
-	\ endif
 
 " Go (Google)
 au BufNewFile,BufRead *.go			setf go
@@ -1564,7 +1551,7 @@ au BufNewFile,BufRead *.nb,*.wl			setf mma
 au BufNewFile,BufRead *.mel			setf mel
 
 " mbsync
-au BufNewFile,BufRead *.mbsyncrc,isyncrc	setf mbsync
+au BufNewFile,BufRead .mbsyncrc			setf conf
 
 " mcmeta
 au BufNewFile,BufRead *.mcmeta			setf json
@@ -1736,7 +1723,7 @@ au BufNewFile,BufRead *.me
 	\   setf nroff |
 	\ endif
 au BufNewFile,BufRead *.tr,*.nr,*.roff,*.tmac,*.mom	setf nroff
-au BufNewFile,BufRead *.[0-9],*.[013]p,*.[1-8]x,*.3{am,perl,pm,posix,type},*.n	call dist#ft#FTnroff()
+au BufNewFile,BufRead *.[1-9]			call dist#ft#FTnroff()
 
 " Nroff or Objective C++
 au BufNewFile,BufRead *.mm			call dist#ft#FTmm()
@@ -1790,9 +1777,6 @@ au BufNewFile,BufRead .ondirrc			setf ondir
 " OPAM
 au BufNewFile,BufRead opam,*.opam,*.opam.template,opam.locked,*.opam.locked setf opam
 
-" OpenAL Soft config files
-au BufNewFile,BufRead .alsoftrc,alsoft.conf,alsoft.ini,alsoftrc.sample setf dosini
-
 " OpenFOAM
 au BufNewFile,BufRead [a-zA-Z0-9]*Dict\(.*\)\=,[a-zA-Z]*Properties\(.*\)\=,*Transport\(.*\),fvSchemes,fvSolution,fvConstrains,fvModels,*/constant/g,*/0\(\.orig\)\=/* call dist#ft#FTfoam()
 
@@ -1819,8 +1803,6 @@ au BufNewFile,BufRead pacman.conf,mpv.conf		setf confini
 au BufNewFile,BufRead */.aws/config,*/.aws/credentials	setf confini
 au BufNewFile,BufRead *.nmconnection			setf confini
 au BufNewFile,BufRead paru.conf				setf confini
-au BufNewFile,BufRead */{,.}gnuradio/*.conf		setf confini
-au BufNewFile,BufRead */gnuradio/conf.d/*.conf		setf confini
 
 " Pacman hooks
 au BufNewFile,BufRead *.hook
@@ -1982,9 +1964,6 @@ au BufNewFile,BufRead	*.ps1,*.psd1,*.psm1,*.pssc	setf ps1
 au BufNewFile,BufRead	*.ps1xml			setf ps1xml
 au BufNewFile,BufRead	*.cdxml,*.psc1			setf xml
 
-" Power Query M
-au BufNewFile,BufRead *.pq			setf pq
-
 " Printcap and Termcap
 au BufNewFile,BufRead *printcap
 	\ let b:ptcap_type = "print" | setf ptcap
@@ -2071,9 +2050,9 @@ au BufNewFile,BufRead *.arr			setf pyret
 au BufNewFile,BufRead *.pyx,*.pyx+,*.pxd,*.pxi	setf pyrex
 
 " Python, Python Shell Startup and Python Stub Files
-" Quixote (Python-based web framework) and IPython
+" Quixote (Python-based web framework)
 au BufNewFile,BufRead *.py,*.pyw,.pythonstartup,.pythonrc,.python_history,.jline-jython.history	setf python
-au BufNewFile,BufRead *.ipy,*.ptl,*.pyi,SConstruct		   setf python
+au BufNewFile,BufRead *.ptl,*.pyi,SConstruct		   setf python
 
 " QL
 au BufRead,BufNewFile *.ql,*.qll		setf ql
@@ -2535,10 +2514,6 @@ au BufNewFile,BufRead *.class
 
 " SMCL
 au BufNewFile,BufRead *.hlp,*.ihlp,*.smcl	setf smcl
-
-" SPA JSON
-au BufNewFile,BufRead */pipewire/*.conf		setf spajson
-au BufNewFile,BufRead */wireplumber/*.conf	setf spajson
 
 " Stored Procedures
 au BufNewFile,BufRead *.stp			setf stp
@@ -3201,7 +3176,7 @@ au BufNewFile,BufRead */etc/sensors.d/[^.]*	call s:StarSetf('sensors')
 au BufNewFile,BufRead */etc/logcheck/*.d*/*	call s:StarSetf('logcheck')
 
 " Makefile
-au BufNewFile,BufRead [mM]akefile*		if expand('<afile>:t') !~ g:ft_ignore_pat | call dist#ft#FTmake() | endif
+au BufNewFile,BufRead [mM]akefile*		call s:StarSetf('make')
 
 " Ruby Makefile
 au BufNewFile,BufRead [rR]akefile*		call s:StarSetf('ruby')

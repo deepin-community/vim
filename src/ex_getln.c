@@ -1620,7 +1620,6 @@ getcmdline_int(
     int		did_save_ccline = FALSE;
     int		cmdline_type;
     int		wild_type = 0;
-    int		event_cmdlineleavepre_triggered = FALSE;
 
     // one recursion level deeper
     ++depth;
@@ -1664,7 +1663,6 @@ getcmdline_int(
 
     ExpandInit(&xpc);
     ccline.xpc = &xpc;
-    clear_cmdline_orig();
 
 #ifdef FEAT_RIGHTLEFT
     if (curwin->w_p_rl && *curwin->w_p_rlc == 's'
@@ -1915,17 +1913,6 @@ getcmdline_int(
 							firstc != '@') == FAIL)
 		    break;
 	    }
-	}
-
-	// Trigger CmdlineLeavePre autocommand
-	if (KeyTyped && (c == '\n' || c == '\r' || c == K_KENTER || c == ESC
-#ifdef UNIX
-		    || c == intr_char
-#endif
-		    || c == Ctrl_C))
-	{
-	    trigger_cmd_autocmd(cmdline_type, EVENT_CMDLINELEAVEPRE);
-	    event_cmdlineleavepre_triggered = TRUE;
 	}
 
 	// The wildmenu is cleared if the pressed key is not used for
@@ -2560,9 +2547,6 @@ cmdline_changed:
     }
 
 returncmd:
-    // Trigger CmdlineLeavePre autocommands if not already triggered.
-    if (!event_cmdlineleavepre_triggered)
-	trigger_cmd_autocmd(cmdline_type, EVENT_CMDLINELEAVEPRE);
 
 #ifdef FEAT_RIGHTLEFT
     cmdmsg_rl = FALSE;
@@ -2579,7 +2563,6 @@ returncmd:
 
     ExpandCleanup(&xpc);
     ccline.xpc = NULL;
-    clear_cmdline_orig();
 
 #ifdef FEAT_SEARCH_EXTRA
     finish_incsearch_highlighting(gotesc, &is_state, FALSE);

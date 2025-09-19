@@ -377,8 +377,6 @@ func Test_display_linebreak_breakat()
 endfunc
 
 func Run_Test_display_lastline(euro)
-  CheckScreendump
-
   let lines =<< trim END
       call setline(1, ['aaa', 'b'->repeat(200)])
       set display=truncate

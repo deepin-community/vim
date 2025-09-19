@@ -2157,8 +2157,7 @@ static void process_message_usual_key(UINT vk, const MSG *pmsg)
  * Experimental implementation, introduced in v8.2.4807
  * "processing key event in Win32 GUI is not ideal"
  */
-    static void
-process_message_usual_key_experimental(UINT vk, const MSG *pmsg)
+static void process_message_usual_key_experimental(UINT vk, const MSG *pmsg)
 {
     WCHAR	ch[8];
     int		len;
@@ -2238,8 +2237,7 @@ process_message_usual_key_experimental(UINT vk, const MSG *pmsg)
 /*
  * "Classic" implementation, existing prior to v8.2.4807
  */
-    static void
-process_message_usual_key_classic(UINT vk, const MSG *pmsg)
+static void process_message_usual_key_classic(UINT vk, const MSG *pmsg)
 {
     char_u	string[40];
 
@@ -3675,11 +3673,12 @@ gui_mch_exit(int rc UNUSED)
     static char_u *
 logfont2name(LOGFONTW lf)
 {
+    char	*p;
+    char	*res;
     char	*charset_name;
     char	*quality_name;
     char	*font_name;
-    size_t	res_size;
-    char	*res;
+    int		points;
 
     font_name = (char *)utf16_to_enc(lf.lfFaceName, NULL);
     if (font_name == NULL)
@@ -3687,48 +3686,43 @@ logfont2name(LOGFONTW lf)
     charset_name = charset_id2name((int)lf.lfCharSet);
     quality_name = quality_id2name((int)lf.lfQuality);
 
-    res_size = STRLEN(font_name) + 30
-		    + (charset_name == NULL ? 0 : STRLEN(charset_name) + 2)
-		    + (quality_name == NULL ? 0 : STRLEN(quality_name) + 2);
-    res = alloc(res_size);
+    res = alloc(strlen(font_name) + 30
+		    + (charset_name == NULL ? 0 : strlen(charset_name) + 2)
+		    + (quality_name == NULL ? 0 : strlen(quality_name) + 2));
     if (res != NULL)
     {
-	char	*p;
-	int	points;
-	size_t	res_len;
-
-	// replace spaces in font_name with underscores.
-	for (p = font_name; *p != NUL; ++p)
-	{
-	    if (isspace(*p))
-		*p = '_';
-	}
-
+	p = res;
 	// make a normal font string out of the lf thing:
 	points = pixels_to_points(
 			 lf.lfHeight < 0 ? -lf.lfHeight : lf.lfHeight, TRUE);
 	if (lf.lfWeight == FW_NORMAL || lf.lfWeight == FW_BOLD)
-	    res_len = vim_snprintf_safelen(
-		(char *)res, res_size, "%s:h%d", font_name, points);
+	    sprintf((char *)p, "%s:h%d", font_name, points);
 	else
-	    res_len = vim_snprintf_safelen(
-		(char *)res, res_size, "%s:h%d:W%ld", font_name, points, lf.lfWeight);
-
-	res_len += vim_snprintf_safelen(
-	    (char *)res + res_len,
-	    res_size - res_len,
-	    "%s%s%s%s",
-	    lf.lfItalic ? ":i" : "",
-	    lf.lfWeight ? ":b" : "",
-	    lf.lfUnderline ? ":u" : "",
-	    lf.lfStrikeOut ? ":s" : "");
-
+	    sprintf((char *)p, "%s:h%d:W%ld", font_name, points, lf.lfWeight);
+	while (*p)
+	{
+	    if (*p == ' ')
+		*p = '_';
+	    ++p;
+	}
+	if (lf.lfItalic)
+	    STRCAT(p, ":i");
+	if (lf.lfWeight == FW_BOLD)
+	    STRCAT(p, ":b");
+	if (lf.lfUnderline)
+	    STRCAT(p, ":u");
+	if (lf.lfStrikeOut)
+	    STRCAT(p, ":s");
 	if (charset_name != NULL)
-	    res_len += vim_snprintf_safelen((char *)res + res_len,
-		res_size - res_len, ":c%s", charset_name);
+	{
+	    STRCAT(p, ":c");
+	    STRCAT(p, charset_name);
+	}
 	if (quality_name != NULL)
-	    vim_snprintf((char *)res + res_len,
-		res_size - res_len, ":q%s", quality_name);
+	{
+	    STRCAT(p, ":q");
+	    STRCAT(p, quality_name);
+	}
     }
 
     vim_free(font_name);
@@ -4981,10 +4975,9 @@ _OnNotify(HWND hwnd, UINT id, NMHDR *hdr)
 		else
 		{
 		    LPNMTTDISPINFO	lpdi = (LPNMTTDISPINFO)hdr;
-		    size_t		len = STRLEN(str);
 
-		    if (len < sizeof(lpdi->szText)
-			    || ((tt_text = vim_strnsave(str, len)) == NULL))
+		    if (STRLEN(str) < sizeof(lpdi->szText)
+			    || ((tt_text = vim_strsave(str)) == NULL))
 			vim_strncpy((char_u *)lpdi->szText, str,
 				sizeof(lpdi->szText) - 1);
 		    else
@@ -5027,6 +5020,7 @@ _OnMenuSelect(HWND hwnd, WPARAM wParam, LPARAM lParam)
 	    == MF_HILITE
 	    && (State & MODE_CMDLINE) == 0)
     {
+	UINT	    idButton;
 	vimmenu_T   *pMenu;
 	static int  did_menu_tip = FALSE;
 
@@ -5038,23 +5032,17 @@ _OnMenuSelect(HWND hwnd, WPARAM wParam, LPARAM lParam)
 	    did_menu_tip = FALSE;
 	}
 
-	pMenu = gui_mswin_find_menu(root_menu, (UINT)LOWORD(wParam));
-	if (pMenu != NULL && pMenu->strings[MENU_INDEX_TIP] != NULL)
+	idButton = (UINT)LOWORD(wParam);
+	pMenu = gui_mswin_find_menu(root_menu, idButton);
+	if (pMenu != NULL && pMenu->strings[MENU_INDEX_TIP] != 0
+		&& GetMenuState(s_menuBar, pMenu->id, MF_BYCOMMAND) != -1)
 	{
-	    MENUITEMINFO menuinfo;
-
-	    menuinfo.cbSize = sizeof(MENUITEMINFO);
-	    menuinfo.fMask = MIIM_ID;		    // We only want to check if the menu item exists,
-						    // so retrieve something simple.
-	    if (GetMenuItemInfo(s_menuBar, pMenu->id, FALSE, &menuinfo))
-	    {
-		++msg_hist_off;
-		msg((char *)pMenu->strings[MENU_INDEX_TIP]);
-		--msg_hist_off;
-		setcursor();
-		out_flush();
-		did_menu_tip = TRUE;
-	    }
+	    ++msg_hist_off;
+	    msg((char *)pMenu->strings[MENU_INDEX_TIP]);
+	    --msg_hist_off;
+	    setcursor();
+	    out_flush();
+	    did_menu_tip = TRUE;
 	}
 	return 0L;
     }
@@ -5063,7 +5051,7 @@ _OnMenuSelect(HWND hwnd, WPARAM wParam, LPARAM lParam)
 #endif
 
     static BOOL
-_OnGetDpiScaledSize(HWND hwnd UNUSED, UINT dpi, SIZE *size)
+_OnGetDpiScaledSize(HWND hwnd, UINT dpi, SIZE *size)
 {
     int		old_width, old_height;
     int		new_width, new_height;
@@ -5384,11 +5372,13 @@ gui_mch_do_spawn(char_u *arg)
 	{
 	    if (*p == L'"')
 	    {
-		// Skip quoted strings
-		while (*++p && *p != L'"');
+		while (*p && *p != L'"')
+		    ++p;
+		if (*p)
+		    ++p;
 	    }
-
-	    ++p;
+	    else
+		++p;
 	}
 	cmd = p;
     }
@@ -5404,12 +5394,7 @@ gui_mch_do_spawn(char_u *arg)
 	if (session == NULL)
 	    goto error;
 	savebg = p_bg;
-	p_bg = vim_strnsave((char_u *)"light", 5);	// Set 'bg' to "light".
-	if (p_bg == NULL)
-	{
-	    p_bg = savebg;
-	    goto error;
-	}
+	p_bg = vim_strsave((char_u *)"light");	// Set 'bg' to "light".
 	ret = write_session_file(session);
 	vim_free(p_bg);
 	p_bg = savebg;
@@ -7142,11 +7127,8 @@ dialog_callback(
 
 	    GetDlgItemTextW(hwnd, DLG_NONBUTTON_CONTROL + 2, wp, IOSIZE);
 	    p = utf16_to_enc(wp, NULL);
-	    if (p != NULL)
-	    {
-		vim_strncpy(s_textfield, p, IOSIZE);
-		vim_free(p);
-	    }
+	    vim_strncpy(s_textfield, p, IOSIZE);
+	    vim_free(p);
 	    vim_free(wp);
 	}
 
@@ -9075,7 +9057,7 @@ test_gui_w32_sendevent_mouse(dict_T *args)
 	if (dict_get_bool(args, "cell", FALSE))
 	{
 	    // calculate the middle of the character cell
-	    // Note: Cell coordinates are 1-based from Vim script
+	    // Note: Cell coordinates are 1-based from vimscript
 	    int pY = (row - 1) * gui.char_height + gui.char_height / 2;
 	    int pX = (col - 1) * gui.char_width + gui.char_width / 2;
 	    gui_mouse_moved(pX, pY);

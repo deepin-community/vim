@@ -47,7 +47,6 @@ func Test_move()
 endfunc
 
 func Test_move_undo()
-  CheckScreendump
   CheckRunVimInTerminal
 
   let lines =<< trim END

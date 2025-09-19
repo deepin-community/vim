@@ -1584,7 +1584,6 @@ BASIC_SRC = \
 	textobject.c \
 	textprop.c \
 	time.c \
-	tuple.c \
 	typval.c \
 	ui.c \
 	undo.c \
@@ -1745,7 +1744,6 @@ OBJ_COMMON = \
 	objects/textobject.o \
 	objects/textprop.o \
 	objects/time.o \
-	objects/tuple.o \
 	objects/typval.o \
 	objects/ui.o \
 	objects/undo.o \
@@ -1939,7 +1937,6 @@ PRO_AUTO = \
 	textobject.pro \
 	textprop.pro \
 	time.pro \
-	tuple.pro \
 	typval.pro \
 	ui.pro \
 	undo.pro \
@@ -2037,7 +2034,7 @@ autoconf:
 	-rm -rf autom4te.cache
 	-rm -f auto/config.status auto/config.cache
 
-# Run Vim script to generate the Ex command lookup table.
+# Run vim script to generate the Ex command lookup table.
 # This only needs to be run when a command name has been added or changed.
 # If this fails because you don't have Vim yet, first build and install Vim
 # without changes.
@@ -2045,7 +2042,7 @@ autoconf:
 cmdidxs: ex_cmds.h
 	vim --clean -X --not-a-term -S create_cmdidxs.vim -c quit
 
-# Run Vim script to generate the normal/visual mode command lookup table.
+# Run vim script to generate the normal/visual mode command lookup table.
 # This only needs to be run when a new normal/visual mode command has been
 # added.
 # This requires a "vim" executable with the +eval feature.
@@ -3571,9 +3568,6 @@ objects/textprop.o: textprop.c
 objects/time.o: time.c
 	$(CCC) -o $@ time.c
 
-objects/tuple.o: tuple.c
-	$(CCC) -o $@ tuple.c
-
 objects/typval.o: typval.c
 	$(CCC) -o $@ typval.c
 
@@ -4250,11 +4244,6 @@ objects/textprop.o: textprop.c vim.h protodef.h auto/config.h feature.h os_unix.
  libvterm/include/vterm_keycodes.h alloc.h ex_cmds.h spell.h proto.h \
  globals.h errors.h
 objects/time.o: time.c vim.h protodef.h auto/config.h feature.h os_unix.h \
- auto/osdef.h ascii.h keymap.h termdefs.h macros.h option.h beval.h \
- proto/gui_beval.pro structs.h regexp.h gui.h libvterm/include/vterm.h \
- libvterm/include/vterm_keycodes.h alloc.h ex_cmds.h spell.h proto.h \
- globals.h errors.h
-objects/tuple.o: tuple.c vim.h protodef.h auto/config.h feature.h os_unix.h \
  auto/osdef.h ascii.h keymap.h termdefs.h macros.h option.h beval.h \
  proto/gui_beval.pro structs.h regexp.h gui.h libvterm/include/vterm.h \
  libvterm/include/vterm_keycodes.h alloc.h ex_cmds.h spell.h proto.h \

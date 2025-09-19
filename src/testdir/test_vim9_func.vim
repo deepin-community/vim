@@ -3204,7 +3204,6 @@ def Test_nested_closure_fails()
 enddef
 
 def Run_Test_closure_in_for_loop_fails()
-  CheckScreendump
   var lines =<< trim END
     vim9script
     redraw
@@ -3601,7 +3600,6 @@ func Test_silent_echo()
 endfunc
 
 def Run_Test_silent_echo()
-  CheckScreendump
   var lines =<< trim END
     vim9script
     def EchoNothing()
@@ -3720,7 +3718,6 @@ def Test_invalid_function_name()
 enddef
 
 def Test_partial_call()
-  CheckFeature quickfix
   var lines =<< trim END
       var Xsetlist: func
       Xsetlist = function('setloclist', [0])
@@ -4577,7 +4574,6 @@ def Test_multiple_funcref()
 enddef
 
 def Test_cexpr_errmsg_line_number()
-  CheckFeature quickfix
   var lines =<< trim END
       vim9script
       def Func()
@@ -4647,7 +4643,6 @@ def Test_invalid_redir()
 enddef
 
 func Test_keytyped_in_nested_function()
-  CheckScreendump
   CheckRunVimInTerminal
 
   call Run_Test_keytyped_in_nested_function()

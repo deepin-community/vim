@@ -849,7 +849,6 @@ func Test_undo_mark()
 endfunc
 
 func Test_undo_after_write()
-  CheckScreendump
   " use a terminal to make undo work like when text is typed
   CheckRunVimInTerminal
 

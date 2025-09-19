@@ -8,7 +8,7 @@
  */
 
 /*
- * profiler.c: Vim script profiler
+ * profiler.c: vim script profiler
  */
 
 #include "vim.h"

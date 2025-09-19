@@ -388,8 +388,7 @@ handle_lnum_col(
 	// If 'signcolumn' is set to 'number' and a sign is present
 	// in 'lnum', then display the sign instead of the line
 	// number.
-	if ((*wp->w_p_scl == 'n' && *(wp->w_p_scl + 1) == 'u') && sign_present
-		&& wlv->sattr.sat_text != NULL)
+	if ((*wp->w_p_scl == 'n' && *(wp->w_p_scl + 1) == 'u') && sign_present)
 	    get_sign_display_info(TRUE, wp, wlv);
 	else
 #endif
@@ -1224,8 +1223,6 @@ win_line(
 #ifdef FEAT_DIFF
     int		change_start = MAXCOL;	// first col of changed area
     int		change_end = -1;	// last col of changed area
-    diffline_T	line_changes;
-    int		change_index = -1;
 #endif
     colnr_T	trailcol = MAXCOL;	// start of trailing spaces
     colnr_T	leadcol = 0;		// start of leading spaces
@@ -1474,37 +1471,16 @@ win_line(
     int linestatus = 0;
     wlv.filler_lines = diff_check_with_linestatus(wp, lnum, &linestatus);
 
-    CLEAR_FIELD(line_changes);
-
     if (wlv.filler_lines < 0 || linestatus < 0)
     {
 	if (wlv.filler_lines == -1 || linestatus == -1)
 	{
-	    if (diff_find_change(wp, lnum, &line_changes))
-	    {
+	    if (diff_find_change(wp, lnum, &change_start, &change_end))
 		wlv.diff_hlf = HLF_ADD;	// added line
-	    }
-	    else if (line_changes.num_changes > 0)
-	    {
-		int added = diff_change_parse(
-			&line_changes, &line_changes.changes[0],
-			&change_start, &change_end);
-		if (change_start == 0)
-		{
-		    if (added)
-			wlv.diff_hlf = HLF_TXA;	// added text on changed line
-		    else
-			wlv.diff_hlf = HLF_TXD;	// changed text on changed line
-		}
-		else
-		    wlv.diff_hlf = HLF_CHD;	// unchanged text on changed line
-		change_index = 0;
-	    }
+	    else if (change_start == 0)
+		wlv.diff_hlf = HLF_TXD;	// changed text
 	    else
-	    {
 		wlv.diff_hlf = HLF_CHD;	// changed line
-		change_index = 0;
-	    }
 	}
 	else
 	    wlv.diff_hlf = HLF_ADD;
@@ -2462,28 +2438,13 @@ win_line(
 #ifdef FEAT_DIFF
 	    if (wlv.diff_hlf != (hlf_T)0)
 	    {
-		if (line_changes.num_changes > 0
-			&& change_index >= 0
-			&& change_index < line_changes.num_changes - 1)
-		{
-		    if (ptr - line >= line_changes.changes[change_index+1].dc_start[line_changes.bufidx])
-			change_index += 1;
-		}
-		int added = FALSE;
-		if (line_changes.num_changes > 0 && change_index >= 0 && change_index < line_changes.num_changes)
-		{
-		    added = diff_change_parse(&line_changes,
-			    &line_changes.changes[change_index],
-			    &change_start,
-			    &change_end);
-		}
 		// When there is extra text (e.g. virtual text) it gets the
 		// diff highlighting for the line, but not for changed text.
 		if (wlv.diff_hlf == HLF_CHD && ptr - line >= change_start
 							   && wlv.n_extra == 0)
-		    wlv.diff_hlf = added ? HLF_TXA : HLF_TXD;	// added/changed text
-		if ((wlv.diff_hlf == HLF_TXD || wlv.diff_hlf == HLF_TXA)
-			&& ((ptr - line >= change_end && wlv.n_extra == 0)
+		    wlv.diff_hlf = HLF_TXD;		// changed text
+		if (wlv.diff_hlf == HLF_TXD
+			&& ((ptr - line > change_end && wlv.n_extra == 0)
 			       || (wlv.n_extra > 0 && wlv.extra_for_textprop)))
 		    wlv.diff_hlf = HLF_CHD;		// changed line
 		wlv.line_attr = HL_ATTR(wlv.diff_hlf);
@@ -3541,7 +3502,7 @@ win_line(
 			wlv.char_attr = wlv.sattr.sat_linehl;
 #endif
 # ifdef FEAT_DIFF
-		    if (wlv.diff_hlf == HLF_TXD || wlv.diff_hlf == HLF_TXA)
+		    if (wlv.diff_hlf == HLF_TXD)
 		    {
 			wlv.diff_hlf = HLF_CHD;
 			if (vi_attr == 0 || wlv.char_attr != vi_attr)

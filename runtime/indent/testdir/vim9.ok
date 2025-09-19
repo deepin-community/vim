@@ -2,8 +2,6 @@ vim9script
 # vim: set ft=vim sw=4 :
 
 # START_INDENT
-# INDENT_EXE let g:vim_indent = {'searchpair_timeout': 8192}
-# INDENT_EXE runtime autoload/dist/vimindent.vim
 var result = Func(
     arg1,
     arg2
@@ -457,7 +455,7 @@ enddef
 # END_INDENT
 
 # START_INDENT
-# INDENT_EXE let g:vim_indent.more_in_bracket_block = v:true
+# INDENT_EXE let g:vim_indent = {'more_in_bracket_block': v:true}
 def Select(Cont: func(func(any)), Pred: func(any): bool): func(func(any))
     return (Emit: func(any)) => {
 	    Cont((t: any) => {
@@ -470,7 +468,7 @@ enddef
 # END_INDENT
 
 # START_INDENT
-# INDENT_EXE let g:vim_indent = {'searchpair_timeout': 8192}
+# INDENT_EXE unlet! g:vim_indent
 # END_INDENT
 
 # START_INDENT

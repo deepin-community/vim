@@ -248,7 +248,6 @@ func Test_put_visual_block_mode()
 endfunc
 
 func Test_put_other_window()
-  CheckScreendump
   CheckRunVimInTerminal
 
   let lines =<< trim END
@@ -268,7 +267,6 @@ func Test_put_other_window()
 endfunc
 
 func Test_put_in_last_displayed_line()
-  CheckScreendump
   CheckRunVimInTerminal
 
   let lines =<< trim END
@@ -433,14 +431,6 @@ func Test_put_inserted()
   endfor
 
   bwipe!
-endfunc
-
-func Test_put_tuple()
-  new
-  let t = ('a', 'b', 'c')
-  put! =t
-  call assert_equal(['a', 'b', 'c', ''], getline(1, '$'))
-  bw!
 endfunc
 
 " vim: shiftwidth=2 sts=2 expandtab

@@ -14,7 +14,6 @@
 "   2025 Mar 02 by Vim Project: escape the filename before using :read
 "   2025 Mar 02 by Vim Project: determine the compression using readblob()
 "                               instead of shelling out to file(1)
-"   2025 Apr 16 by Vim Project: decouple from netrw by adding s:WinPath()
 "
 "	Contains many ideas from Michael Toren's <tar.vim>
 "
@@ -147,7 +146,7 @@ fun! tar#Browse(tarfile)
   let lastline= line("$")
   call setline(lastline+1,'" tar.vim version '.g:loaded_tar)
   call setline(lastline+2,'" Browsing tarfile '.a:tarfile)
-  call setline(lastline+3,'" Select a file with cursor and press ENTER, "x" to extract a file')
+  call setline(lastline+3,'" Select a file with cursor and press ENTER')
   keepj $put =''
   keepj sil! 0d
   keepj $
@@ -616,7 +615,7 @@ fun! tar#Extract()
   let tarball = expand("%")
   let tarbase = substitute(tarball,'\..*$','','')
 
-  let extractcmd= s:WinPath(g:tar_extractcmd)
+  let extractcmd= netrw#WinPath(g:tar_extractcmd)
   if filereadable(tarbase.".tar")
    call system(extractcmd." ".shellescape(tarbase).".tar ".shellescape(fname))
    if v:shell_error != 0
@@ -767,25 +766,6 @@ fun! s:Header(fname)
 endfun
 
 " ---------------------------------------------------------------------
-" s:WinPath: {{{2
-fun! s:WinPath(path)
-  if (!g:netrw_cygwin || &shell !~ '\%(\<bash\>\|\<zsh\>\)\%(\.exe\)\=$') && has("win32")
-    " remove cygdrive prefix, if present
-    let path = substitute(a:path, '/cygdrive/\(.\)', '\1:', '')
-    " remove trailing slash (Win95)
-    let path = substitute(path, '\(\\\|/\)$', '', 'g')
-    " remove escaped spaces
-    let path = substitute(path, '\ ', ' ', 'g')
-    " convert slashes to backslashes
-    let path = substitute(path, '/', '\', 'g')
-  else
-    let path = a:path
-  endif
-
-  return path
-endfun
-
-" ---------------------------------------------------------------------
 " tar#Vimuntar: installs a tarball in the user's .vim / vimfiles directory {{{2
 fun! tar#Vimuntar(...)
   let tarball = expand("%")
@@ -806,7 +786,7 @@ fun! tar#Vimuntar(...)
 
   if simplify(curdir) != simplify(vimhome)
    " copy (possibly compressed) tarball to .vim/vimfiles
-   call system(s:WinPath(g:tar_copycmd)." ".shellescape(tartail)." ".shellescape(vimhome))
+   call system(netrw#WinPath(g:tar_copycmd)." ".shellescape(tartail)." ".shellescape(vimhome))
    exe "cd ".fnameescape(vimhome)
   endif
 
@@ -828,7 +808,7 @@ fun! tar#Vimuntar(...)
   else
    call vimball#Decompress(tartail,0)
   endif
-  let extractcmd= s:WinPath(g:tar_extractcmd)
+  let extractcmd= netrw#WinPath(g:tar_extractcmd)
   call system(extractcmd." ".shellescape(tarbase.".tar"))
 
   " set up help

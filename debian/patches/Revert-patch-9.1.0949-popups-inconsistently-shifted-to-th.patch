@@ -28,7 +28,7 @@ index ba87b31..e7526ec 100644
  			   the screen, then
  			the popup is moved to the left so as to fit the
 diff --git a/src/popupwin.c b/src/popupwin.c
-index 60a54d7..bb4c550 100644
+index 76ebf38..33bff26 100644
 --- a/src/popupwin.c
 +++ b/src/popupwin.c
 @@ -1433,7 +1433,17 @@ popup_adjust_position(win_T *wp)
@@ -76,7 +76,7 @@ index 60a54d7..bb4c550 100644
  	{
  	    wp->w_width = len + margin_width;
 diff --git a/src/testdir/test_popupwin.vim b/src/testdir/test_popupwin.vim
-index 3c8e5d7..7920443 100644
+index 5082676..e182505 100644
 --- a/src/testdir/test_popupwin.vim
 +++ b/src/testdir/test_popupwin.vim
 @@ -31,7 +31,7 @@ func Test_simple_popup()
@@ -152,10 +152,10 @@ index 3c8e5d7..7920443 100644
  	\     wrap: 0,
  	\     fixed: 1,
 diff --git a/src/version.c b/src/version.c
-index a2cfb00..6091dcd 100644
+index f50c414..11ba12a 100644
 --- a/src/version.c
 +++ b/src/version.c
-@@ -1576,8 +1576,6 @@ static int included_patches[] =
+@@ -1266,8 +1266,6 @@ static int included_patches[] =
      951,
  /**/
      950,

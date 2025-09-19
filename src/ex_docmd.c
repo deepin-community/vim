@@ -289,6 +289,7 @@ static void	ex_tag_cmd(exarg_T *eap, char_u *name);
 # define ex_endif		ex_ni
 # define ex_endtry		ex_ni
 # define ex_endwhile		ex_ni
+# define ex_enum		ex_ni
 # define ex_eval		ex_ni
 # define ex_execute		ex_ni
 # define ex_finally		ex_ni
@@ -3798,12 +3799,8 @@ find_ex_command(
 		if (eq != NULL)
 		{
 		    eq = skipwhite(eq);
-		    if (vim_strchr((char_u *)"+-*/%.", *eq) != NULL)
-		    {
-			if (eq[0] == '.' && eq[1] == '.')
-			    ++eq;
+		    if (vim_strchr((char_u *)"+-*/%", *eq) != NULL)
 			++eq;
-		    }
 		}
 		if (p == NULL || p == eap->cmd || *eq != '=')
 		{
@@ -5975,7 +5972,7 @@ get_command_name(expand_T *xp UNUSED, int idx)
 	return expand_user_command_name(idx);
     // the following are no real commands
     if (STRNCMP(cmdnames[idx].cmd_name, "{", 1) == 0 ||
-	STRNCMP(cmdnames[idx].cmd_name, "}", 1) == 0)
+        STRNCMP(cmdnames[idx].cmd_name, "}", 1) == 0)
 	return (char_u *)"";
     return cmdnames[idx].cmd_name;
 }
@@ -9326,12 +9323,6 @@ ex_stopinsert(exarg_T *eap UNUSED)
 {
     restart_edit = 0;
     stop_insert_mode = TRUE;
-#if defined(FEAT_CLIENTSERVER) || defined(FEAT_EVAL)
-    // when called from remote_expr in insert mode, make sure insert mode is
-    // ended by adding K_NOP to the typeahead buffer
-    if (vgetc_busy)
-       ins_char_typebuf(K_NOP, 0);
-#endif
     clearmode();
 }
 

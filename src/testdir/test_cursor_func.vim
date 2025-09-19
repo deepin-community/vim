@@ -92,10 +92,6 @@ func Test_curswant_with_cursorline()
 endfunc
 
 func Test_screenpos()
-  if has('gui_running')
-    set lines=25
-    set columns=78
-  endif
   rightbelow new
   rightbelow 20vsplit
   call setline(1, ["\tsome text", "long wrapping line here", "next line"])

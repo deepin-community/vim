@@ -70,7 +70,6 @@ endfunc
 
 " Check a terminal with different colors
 func Terminal_color(group_name, highlight_cmds, highlight_opt, open_cmds)
-  CheckScreendump
   CheckRunVimInTerminal
   CheckUnix
 
@@ -140,7 +139,6 @@ func Test_terminal_color_wincolor_over_group()
 endfunc
 
 func Test_terminal_color_wincolor_split()
-  CheckScreendump
   CheckRunVimInTerminal
   CheckUnix
 
@@ -248,7 +246,6 @@ func Test_terminal_color_gui_transp_wincolor()
 endfunc
 
 func Test_terminal_in_popup()
-  CheckScreendump
   CheckRunVimInTerminal
 
   let text =<< trim END
@@ -327,7 +324,6 @@ endfunc
 
 " Check a terminal in popup window uses the default minimum size.
 func Test_terminal_in_popup_min_size()
-  CheckScreendump
   CheckRunVimInTerminal
 
   let text =<< trim END
@@ -360,7 +356,6 @@ endfunc
 
 " Check a terminal in popup window with different colors
 func Terminal_in_popup_color(group_name, highlight_cmds, highlight_opt, popup_cmds, popup_opt)
-  CheckScreendump
   CheckRunVimInTerminal
   CheckUnix
 

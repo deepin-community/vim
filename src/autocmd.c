@@ -110,7 +110,6 @@ static keyvalue_T event_tab[NUM_EVENTS] = {
     KEYVALUE_ENTRY(EVENT_CMDLINECHANGED, "CmdlineChanged"),
     KEYVALUE_ENTRY(EVENT_CMDLINEENTER, "CmdlineEnter"),
     KEYVALUE_ENTRY(EVENT_CMDLINELEAVE, "CmdlineLeave"),
-    KEYVALUE_ENTRY(EVENT_CMDLINELEAVEPRE, "CmdlineLeavePre"),
     KEYVALUE_ENTRY(EVENT_CMDUNDEFINED, "CmdUndefined"),
     KEYVALUE_ENTRY(EVENT_CMDWINENTER, "CmdwinEnter"),
     KEYVALUE_ENTRY(EVENT_CMDWINLEAVE, "CmdwinLeave"),
@@ -2135,24 +2134,16 @@ apply_autocmds_group(
     if (event_ignored(event, p_ei))
 	goto BYPASS_AU;
 
+    wininfo_T *wip;
     int win_ignore = FALSE;
     // If event is allowed in 'eventignorewin', check if curwin or all windows
     // into "buf" are ignoring the event.
     if (buf == curbuf && event_tab[event].key <= 0)
 	win_ignore = event_ignored(event, curwin->w_p_eiw);
-    else if (buf != NULL && event_tab[event].key <= 0 && buf->b_nwindows > 0)
-    {
-	tabpage_T *tp;
-	win_T *wp;
-
-	win_ignore = TRUE;
-	FOR_ALL_TAB_WINDOWS(tp, wp)
-	    if (wp->w_buffer == buf && !event_ignored(event, wp->w_p_eiw))
-	    {
-		win_ignore = FALSE;
-		break;
-	    }
-    }
+    else if (buf != NULL && event_tab[event].key <= 0)
+	FOR_ALL_BUF_WININFO(buf, wip)
+	    if (wip->wi_win != NULL && wip->wi_win->w_buffer == buf)
+		win_ignore = event_ignored(event, wip->wi_win->w_p_eiw);
     if (win_ignore)
 	goto BYPASS_AU;
 
@@ -2262,7 +2253,6 @@ apply_autocmds_group(
 		|| event == EVENT_SYNTAX
 		|| event == EVENT_CMDLINECHANGED
 		|| event == EVENT_CMDLINEENTER
-		|| event == EVENT_CMDLINELEAVEPRE
 		|| event == EVENT_CMDLINELEAVE
 		|| event == EVENT_CURSORMOVEDC
 		|| event == EVENT_CMDWINENTER

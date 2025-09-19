@@ -47,24 +47,6 @@ var foo =<< eval trim END
 ...
 END
 
-# Typed declarations
-
-var foo: tuple<any> = expr
-var foo: tuple<number> = expr
-var foo: tuple<number, string, bool> = expr
-var foo: tuple<...list<any>> = expr
-var foo: tuple<...list<number>> = expr
-var foo: tuple<number, ...list<string>> = expr
-
-var foo: tuple<
-      #\ comment
-      \number, 
-      #\ comment
-      \string, 
-      #\ comment
-      \bool
-      \>
-
 # Assignments
 
 foo = expr

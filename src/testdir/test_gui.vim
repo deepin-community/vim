@@ -770,10 +770,13 @@ func Test_set_guioptions()
 endfunc
 
 func Test_scrollbars()
+  " this test sometimes fails on CI
+  let g:test_is_flaky = 1
+
   " buffer with 200 lines
+  new
   call setline(1, repeat(['one', 'two'], 100))
-  set scrolloff=0
-  set guioptions=rlbk
+  set guioptions+=rlb
 
   " scroll to move line 11 at top, moves the cursor there
   let args = #{which: 'left', value: 10, dragging: 0}
@@ -823,7 +826,6 @@ func Test_scrollbars()
   call assert_fails("call test_gui_event('scrollbar', #{which: 'a', value: 1, dragging: 0})", 'E475:')
 
   set guioptions&
-  set scrolloff&
   set wrap&
   bwipe!
 endfunc

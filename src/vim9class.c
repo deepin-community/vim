@@ -2928,13 +2928,11 @@ get_member_tv(
 	object_T *obj = rettv->vval.v_object;
 	typval_T *tv = (typval_T *)(obj + 1) + m_idx;
 	copy_tv(tv, rettv);
-	set_tv_type(rettv, m->ocm_type);
 	object_unref(obj);
     }
     else
     {
 	copy_tv(&cl->class_members_tv[m_idx], rettv);
-	set_tv_type(rettv, m->ocm_type);
 	class_unref(cl);
     }
 
@@ -3652,7 +3650,7 @@ class_free_nonref(int copyID)
 set_ref_in_classes(int copyID)
 {
     for (class_T *cl = first_class; cl != NULL; cl = cl->class_next_used)
-	set_ref_in_item_class(cl, copyID, NULL, NULL, NULL);
+	set_ref_in_item_class(cl, copyID, NULL, NULL);
 
     return FALSE;
 }
@@ -4134,12 +4132,7 @@ f_instanceof(typval_T *argvars, typval_T *rettv)
 	return;
 
     if (object_tv->vval.v_object == NULL)
-    {
-	if (classinfo_tv->vval.v_class == NULL)
-	    // consider null_object as an instance of null_class
-	    rettv->vval.v_number = VVAL_TRUE;
 	return;
-    }
 
     for (; classinfo_tv->v_type != VAR_UNKNOWN; ++classinfo_tv)
     {

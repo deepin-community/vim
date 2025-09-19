@@ -71,7 +71,6 @@ static keyvalue_T command_complete_tab[] =
     KEYVALUE_ENTRY(EXPAND_FILES, "file"),
     KEYVALUE_ENTRY(EXPAND_FILES_IN_PATH, "file_in_path"),
     KEYVALUE_ENTRY(EXPAND_FILETYPE, "filetype"),
-    KEYVALUE_ENTRY(EXPAND_FILETYPECMD, "filetypecmd"),
     KEYVALUE_ENTRY(EXPAND_FUNCTIONS, "function"),
     KEYVALUE_ENTRY(EXPAND_HELP, "help"),
     KEYVALUE_ENTRY(EXPAND_HIGHLIGHT, "highlight"),
@@ -606,8 +605,7 @@ uc_list(char_u *name, size_t name_len)
 	    msg_outtrans_attr(cmd->uc_name, HL_ATTR(HLF_D));
 	    len = (int)cmd->uc_namelen + 4;
 
-	    do
-	    {
+	    do {
 		msg_putchar(' ');
 		++len;
 	    } while (len < 22);
@@ -627,8 +625,7 @@ uc_list(char_u *name, size_t name_len)
 		case (EX_EXTRA|EX_NOSPC|EX_NEEDARG): IObuff[len++] = '1'; break;
 	    }
 
-	    do
-	    {
+	    do {
 		IObuff[len++] = ' ';
 	    } while (len < 5 - over);
 
@@ -651,8 +648,7 @@ uc_list(char_u *name, size_t name_len)
 		    IObuff[len++] = '.';
 	    }
 
-	    do
-	    {
+	    do {
 		IObuff[len++] = ' ';
 	    } while (len < 8 - over);
 
@@ -666,8 +662,7 @@ uc_list(char_u *name, size_t name_len)
 		    break;
 		}
 
-	    do
-	    {
+	    do {
 		IObuff[len++] = ' ';
 	    } while (len < 13 - over);
 
@@ -692,8 +687,7 @@ uc_list(char_u *name, size_t name_len)
 #endif
 	    }
 
-	    do
-	    {
+	    do {
 		IObuff[len++] = ' ';
 	    } while (len < 25 - over);
 

@@ -16,10 +16,6 @@ func TearDown()
 endfunc
 
 func s:get_statusline()
-  if has('gui_running')
-    redraw!
-    sleep 1m
-  endif
   return ScreenLines(&lines - 1, &columns)[0]
 endfunc
 

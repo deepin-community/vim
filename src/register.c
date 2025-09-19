@@ -846,7 +846,7 @@ insert_reg(
 	{
 	    for (i = 0; i < y_current->y_size; ++i)
 	    {
-		if (regname == '-' && y_current->y_type == MCHAR)
+		if (regname == '-')
 		{
 		    int dir = BACKWARD;
 		    if ((State & REPLACE_FLAG) != 0)
@@ -867,13 +867,11 @@ insert_reg(
 		    do_put(regname, NULL, dir, 1L, PUT_CURSEND);
 		}
 		else
-		{
 		    stuffescaped(y_current->y_array[i].string, literally);
-		    // Insert a newline between lines and after last line if
-		    // y_type is MLINE.
-		    if (y_current->y_type == MLINE || i < y_current->y_size - 1)
-			stuffcharReadbuff('\n');
-		}
+		// Insert a newline between lines and after last line if
+		// y_type is MLINE.
+		if (y_current->y_type == MLINE || i < y_current->y_size - 1)
+		    stuffcharReadbuff('\n');
 	    }
 	}
     }
@@ -2068,8 +2066,7 @@ do_put(
 	    else
 	    {
 		totlen = count * yanklen;
-		do
-		{
+		do {
 		    oldp = ml_get(lnum);
 		    oldlen = ml_get_len(lnum);
 		    if (lnum > start_lnum)

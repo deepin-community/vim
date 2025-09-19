@@ -362,7 +362,7 @@ endfunc
 
 func Test_lambda_error()
   " This was causing a crash
-  call assert_fails('ec{@{->{d->()()', 'E451:')
+  call assert_fails('ec{@{->{d->()()', 'E15:')
 endfunc
 
 func Test_closure_error()

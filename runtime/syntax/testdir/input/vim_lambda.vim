@@ -1,7 +1,4 @@
 " Vim lambda expressions
-" VIM_TEST_SETUP hi link vimLambdaOperator Todo
-" VIM_TEST_SETUP hi link vimLambdaBrace    Todo
-" VIM_TEST_SETUP hi link vimFuncParam	   Identifier
 
 
 let expr = 42
@@ -59,17 +56,12 @@ let Foo = {x,
       \ z -> expr}
 
 let Foo = {
-      "\ comment
       \ x,
-      "\ comment
       \ y,
-      "\ comment
       \ z
-      "\ comment
       \ ->
       "\ comment
       \ expr
-      "\ comment
       \ }
 
 let Foo = {-> [
@@ -101,7 +93,6 @@ let Foo = {-> {-> #{
       \ a: 42,
       \ b: 83
       \}}}
-
 
 " :help lambda
 

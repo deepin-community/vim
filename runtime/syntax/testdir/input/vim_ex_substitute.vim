@@ -124,6 +124,7 @@ s \&{string}&
 
 " Trailing comment and bar
 
+" FIXME: trailing comment, no whitespace
 s" comment
 s| echo "Foo"
 

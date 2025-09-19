@@ -87,13 +87,6 @@
 # endif
 #endif
 
-// C89 does not define SIZE_MAX
-#if defined(__hpux) || defined(VMS)
-# ifndef SIZE_MAX
-#  define SIZE_MAX ((size_t)(-1))
-# endif
-#endif
-
 // user ID of root is usually zero, but not for everybody
 #ifdef __TANDEM
 # ifndef _TANDEM_SOURCE
@@ -854,7 +847,6 @@ extern int (*dyn_libintl_wputenv)(const wchar_t *envstring);
 #define EXPAND_SHELLCMDLINE	60
 #define EXPAND_FINDFUNC		61
 #define EXPAND_HIGHLIGHT_GROUP  62
-#define EXPAND_FILETYPECMD	63
 
 
 // Values for exmode_active (0 is no exmode)
@@ -1372,7 +1364,6 @@ enum auto_event
     EVENT_BUFWRITEPRE,		// before writing a buffer
     EVENT_CMDLINECHANGED,	// command line was modified
     EVENT_CMDLINEENTER,		// after entering the command line
-    EVENT_CMDLINELEAVEPRE,	// just before leaving the command line
     EVENT_CMDLINELEAVE,		// before leaving the command line
     EVENT_CMDUNDEFINED,		// command undefined
     EVENT_CMDWINENTER,		// after entering the cmdline window
@@ -1519,8 +1510,7 @@ typedef enum
     , HLF_ADD	    // Added diff line
     , HLF_CHD	    // Changed diff line
     , HLF_DED	    // Deleted diff line
-    , HLF_TXD	    // Text Changed in changed diff line
-    , HLF_TXA	    // Text Added in changed diff line
+    , HLF_TXD	    // Text Changed in diff line
     , HLF_CONCEAL   // Concealed text
     , HLF_SC	    // Sign column
     , HLF_SPB	    // SpellBad
@@ -1554,7 +1544,7 @@ typedef enum
 // When changing this also adjust the default for 'highlight'.
 #define HL_FLAGS {'8', '~', '@', 'd', 'e', 'h', 'i', 'l', 'y', 'm', 'M', \
 		  'n', 'a', 'b', 'N', 'G', 'O', 'r', 's', 'S', 'c', 't', 'v', 'V', \
-		  'w', 'W', 'f', 'F', 'A', 'C', 'D', 'T', 'E', '-', '>', \
+		  'w', 'W', 'f', 'F', 'A', 'C', 'D', 'T', '-', '>', \
 		  'B', 'P', 'R', 'L', \
 		  '+', '=', 'k', '<','[', ']', '{', '}', 'x', 'X', \
 		  '*', '#', '_', '!', '.', 'o', 'q', \
@@ -2211,8 +2201,7 @@ typedef int sock_T;
 #define VV_TYPE_ENUM	  108
 #define VV_TYPE_ENUMVALUE 109
 #define VV_STACKTRACE	110
-#define VV_TYPE_TUPLE	111
-#define VV_LEN		112	// number of v: vars
+#define VV_LEN		111	// number of v: vars
 
 // used for v_number in VAR_BOOL and VAR_SPECIAL
 #define VVAL_FALSE	0L	// VAR_BOOL
@@ -2238,7 +2227,6 @@ typedef int sock_T;
 #define VAR_TYPE_TYPEALIAS  14
 #define VAR_TYPE_ENUM	    15
 #define VAR_TYPE_ENUMVALUE  16
-#define VAR_TYPE_TUPLE	    17
 
 #define DICT_MAXNEST 100	// maximum nesting of lists and dicts
 

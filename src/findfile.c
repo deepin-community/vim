@@ -1166,8 +1166,7 @@ vim_findfile(void *search_ctx_arg)
 			    if (*suf == NUL)
 				break;
 			    file_path.length = len + copy_option_part(&suf,
-				  file_path.string + len,
-				  (int)(MAXPATHL - len), ",");
+				  file_path.string + len, MAXPATHL - len, ",");
 			}
 		    }
 		}
