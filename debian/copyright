@@ -61,6 +61,7 @@ Files:
  runtime/ftplugin/jsonc.vim
  runtime/ftplugin/julia.vim
  runtime/ftplugin/just.vim
+ runtime/ftplugin/nu.vim
  runtime/ftplugin/requirements.vim
  runtime/ftplugin/typst.vim
  runtime/ftplugin/wat.vim
@@ -69,6 +70,7 @@ Files:
  runtime/indent/graphql.vim
  runtime/indent/julia.vim
  runtime/indent/just.vim
+ runtime/indent/nu.vim
  runtime/indent/typst.vim
  runtime/indent/wat.vim
  runtime/syntax/astro.vim
@@ -81,10 +83,14 @@ Files:
  runtime/syntax/julia.vim
  runtime/syntax/just.vim
  runtime/syntax/nix.vim
+ runtime/syntax/nu.vim
  runtime/syntax/pandoc.vim
  runtime/syntax/requirements.vim
  runtime/syntax/typst.vim
  runtime/syntax/wat.vim
+ src/auto/wayland/protocols/primary-selection-unstable-v1.xml
+ src/auto/wayland/protocols/xdg-shell.xml
+ src/fuzzy.c
 Copyright:
  2013 Jeroen Ruigrok van der Werven, Eli Parra
  2016 rhysd
@@ -102,6 +108,15 @@ Copyright:
  2013-2022 Sergii Tykhomyrov
  Jon Parise <jon@indelible.org>
  2021 Noah Bogart
+ El Kasztano
+ 2015, 2016 Red Hat
+ 2008-2013 Kristian Høgsberg
+ 2013 Rafael Antognolli
+ 2013 Jasper St. Pierre
+ 2010-2013 Intel Corporation
+ 2015-2017 Samsung Electronics Co., Ltd
+ 2015-2017 Red Hat Inc.
+ 2014 John Hawthorn
 License: Expat
 
 Files: runtime/syntax/tmux.vim
@@ -214,6 +229,24 @@ Files:
 Copyright:
  Evan Hanson <evhan@foldling.org>
 License: Unlicense
+
+Files:
+ runtime/autoload/hcl.vim
+ runtime/indent/hcl.vim
+ runtime/syntax/hcl.vim
+ runtime/syntax/terraform.vim
+Copyright:
+ 2014-2016 Mark Cornick <mark@markcornick.com>
+License: ISC
+
+Files:
+ src/auto/wayland/protocols/ext-data-control-v1.xml
+ src/auto/wayland/protocols/wlr-data-control-unstable-v1.xml
+Copyright:
+ 2018 Simon Ser
+ 2019 Ivan Molodetskikh
+ 2024 Neal Gompa
+License: HPND-sell
 
 License: Vim
  I)  There are no restrictions on distributing unmodified copies of Vim except
@@ -687,3 +720,38 @@ License: Unlicense
  OTHER DEALINGS IN THE SOFTWARE.
  .
  For more information, please refer to <https://unlicense.org/>
+
+License: ISC
+ Permission to use, copy, modify, and/or distribute this software for any purpose
+ with or without fee is hereby granted, provided that the above copyright notice
+ and this permission notice appear in all copies.
+ .
+ THE SOFTWARE IS PROVIDED 'AS IS' AND THE AUTHOR DISCLAIMS ALL WARRANTIES WITH
+ REGARD TO THIS SOFTWARE INCLUDING ALL IMPLIED WARRANTIES OF MERCHANTABILITY AND
+ FITNESS. IN NO EVENT SHALL THE AUTHOR BE LIABLE FOR ANY SPECIAL, DIRECT,
+ INDIRECT, OR CONSEQUENTIAL DAMAGES OR ANY DAMAGES WHATSOEVER RESULTING FROM LOSS
+ OF USE, DATA OR PROFITS, WHETHER IN AN ACTION OF CONTRACT, NEGLIGENCE OR OTHER
+ TORTIOUS ACTION, ARISING OUT OF OR IN CONNECTION WITH THE USE OR PERFORMANCE OF
+ THIS SOFTWARE.
+
+License: HPND-sell
+ Permission to use, copy, modify, distribute, and sell this
+ software and its documentation for any purpose is hereby granted
+ without fee, provided that the above copyright notice appear in
+ all copies and that both that copyright notice and this permission
+ notice appear in supporting documentation, and that the name of
+ the copyright holders not be used in advertising or publicity
+ pertaining to distribution of the software without specific,
+ written prior permission.  The copyright holders make no
+ representations about the suitability of this software for any
+ purpose.  It is provided "as is" without express or implied
+ warranty.
+ .
+ THE COPYRIGHT HOLDERS DISCLAIM ALL WARRANTIES WITH REGARD TO THIS
+ SOFTWARE, INCLUDING ALL IMPLIED WARRANTIES OF MERCHANTABILITY AND
+ FITNESS, IN NO EVENT SHALL THE COPYRIGHT HOLDERS BE LIABLE FOR ANY
+ SPECIAL, INDIRECT OR CONSEQUENTIAL DAMAGES OR ANY DAMAGES
+ WHATSOEVER RESULTING FROM LOSS OF USE, DATA OR PROFITS, WHETHER IN
+ AN ACTION OF CONTRACT, NEGLIGENCE OR OTHER TORTIOUS ACTION,
+ ARISING OUT OF OR IN CONNECTION WITH THE USE OR PERFORMANCE OF
+ THIS SOFTWARE.

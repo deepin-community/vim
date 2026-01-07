@@ -249,9 +249,16 @@ static char *(highlight_init_both[]) = {
 	 "TabLineSel term=bold cterm=bold gui=bold"),
     CENT("TabLineFill term=reverse cterm=reverse",
 	 "TabLineFill term=reverse cterm=reverse gui=reverse"),
+    "default link TabPanel TabLine",
+    "default link TabPanelSel TabLineSel",
+    "default link TabPanelFill TabLineFill",
 #ifdef FEAT_GUI
     "Cursor guibg=fg guifg=bg",
     "lCursor guibg=fg guifg=bg", // should be different, but what?
+#endif
+#ifdef FEAT_GUI_MSWIN
+    "TitleBar guibg=bg guifg=fg",
+    "TitleBarNC guibg=NONE guifg=NONE",
 #endif
     "default link QuickFixLine Search",
     "default link CursorLineSign SignColumn",
@@ -263,9 +270,11 @@ static char *(highlight_init_both[]) = {
     "default link PmenuMatchSel PmenuSel",
     "default link PmenuExtra Pmenu",
     "default link PmenuExtraSel PmenuSel",
+    "default link PmenuBorder Pmenu",
     "default link PopupSelected PmenuSel",
     "default link MessageWindow WarningMsg",
     "default link PopupNotification WarningMsg",
+    "default link PreInsert Added",
     CENT("Normal cterm=NONE", "Normal gui=NONE"),
     NULL
 };
@@ -296,6 +305,8 @@ static char *(highlight_init_light[]) = {
 #endif
     CENT("PmenuThumb ctermbg=Black",
 	 "PmenuThumb ctermbg=Black guibg=Black"),
+    CENT("PmenuShadow ctermbg=Black ctermfg=DarkGrey",
+	 "PmenuShadow ctermbg=Black ctermfg=DarkGrey guibg=Black guifg=DarkGrey"),
     CENT("Pmenu ctermbg=LightMagenta ctermfg=Black",
 	 "Pmenu ctermbg=LightMagenta ctermfg=Black guibg=LightMagenta"),
     CENT("PmenuSel ctermbg=LightGrey ctermfg=Black",
@@ -387,6 +398,8 @@ static char *(highlight_init_dark[]) = {
 #endif
     CENT("PmenuThumb ctermbg=White",
 	 "PmenuThumb ctermbg=White guibg=White"),
+    CENT("PmenuShadow ctermbg=Black ctermfg=DarkGrey",
+	 "PmenuShadow ctermbg=Black ctermfg=DarkGrey guibg=Black guifg=DarkGrey"),
     CENT("Pmenu ctermbg=Magenta ctermfg=Black",
 	 "Pmenu ctermbg=Magenta ctermfg=Black guibg=Magenta"),
     CENT("PmenuSel ctermbg=Black ctermfg=DarkGrey",
@@ -448,7 +461,7 @@ static char *(highlight_init_dark[]) = {
     NULL
 };
 
-#if defined(FEAT_SYN_HL) || defined(PROTO)
+#if defined(FEAT_SYN_HL)
 /*
  * Returns the number of highlight groups.
  */
@@ -812,6 +825,10 @@ highlight_reset_all(void)
     }
 # if defined(FEAT_GUI_MSWIN) || defined(FEAT_GUI_X11)
     gui_mch_def_colors();
+# endif
+# ifdef FEAT_GUI_MSWIN
+    if (gui.in_use)
+	gui_mch_set_titlebar_colors();
 # endif
 # ifdef FEAT_GUI_X11
 #  ifdef FEAT_MENU
@@ -1268,6 +1285,8 @@ highlight_set_guifg(
 	int	is_menu_group UNUSED,
 	int	is_scrollbar_group UNUSED,
 	int	is_tooltip_group UNUSED,
+	int	is_titlebar_group UNUSED,
+	int	is_titlebarnc_group UNUSED,
 	int	*do_colors UNUSED,
 	int	init)
 {
@@ -1301,6 +1320,18 @@ highlight_set_guifg(
 	    did_change = TRUE;
 	}
 # if defined(FEAT_GUI) || defined(FEAT_TERMGUICOLORS)
+#  ifdef FEAT_GUI_MSWIN
+	if (is_titlebar_group && gui.title_fg_pixel != i)
+	{
+	    gui.title_fg_pixel = i;
+	    *do_colors = TRUE;
+	}
+	if (is_titlebarnc_group && gui.titlenc_fg_pixel != i)
+	{
+	    gui.titlenc_fg_pixel = i;
+	    *do_colors = TRUE;
+	}
+#  endif
 #  ifdef FEAT_GUI_X11
 	if (is_menu_group && gui.menu_fg_pixel != i)
 	{
@@ -1337,6 +1368,8 @@ highlight_set_guibg(
 	int	is_menu_group UNUSED,
 	int	is_scrollbar_group UNUSED,
 	int	is_tooltip_group UNUSED,
+	int	is_titlebar_group UNUSED,
+	int	is_titlebarnc_group UNUSED,
 	int	*do_colors UNUSED,
 	int	init)
 {
@@ -1370,6 +1403,18 @@ highlight_set_guibg(
 	    did_change = TRUE;
 	}
 # if defined(FEAT_GUI) || defined(FEAT_TERMGUICOLORS)
+#  ifdef FEAT_GUI_MSWIN
+	if (is_titlebar_group && gui.title_bg_pixel != i)
+	{
+	    gui.title_bg_pixel = i;
+	    *do_colors = TRUE;
+	}
+	if (is_titlebarnc_group && gui.titlenc_bg_pixel != i)
+	{
+	    gui.titlenc_bg_pixel = i;
+	    *do_colors = TRUE;
+	}
+#  endif
 #  ifdef FEAT_GUI_X11
 	if (is_menu_group && gui.menu_bg_pixel != i)
 	{
@@ -1547,6 +1592,13 @@ do_highlight(
     int		dolink = FALSE;
     int		error = FALSE;
     int		is_normal_group = FALSE;	// "Normal" group
+#ifdef FEAT_GUI_MSWIN
+    int		is_titlebar_group = FALSE;	// "TitleBar" group
+    int		is_titlebarnc_group = FALSE;	// "TitleBarNC" group
+#else
+# define is_titlebar_group 0
+# define is_titlebarnc_group 0
+#endif
 #ifdef FEAT_GUI_X11
     int		is_menu_group = FALSE;		// "Menu" group
     int		is_scrollbar_group = FALSE;	// "Scrollbar" group
@@ -1664,6 +1716,12 @@ do_highlight(
 
     if (STRCMP(HL_TABLE()[idx].sg_name_u, "NORMAL") == 0)
 	is_normal_group = TRUE;
+#ifdef FEAT_GUI_MSWIN
+    else if (STRCMP(HL_TABLE()[idx].sg_name_u, "TITLEBAR") == 0)
+	is_titlebar_group = TRUE;
+    else if (STRCMP(HL_TABLE()[idx].sg_name_u, "TITLEBARNC") == 0)
+	is_titlebarnc_group = TRUE;
+#endif
 #ifdef FEAT_GUI_X11
     else if (STRCMP(HL_TABLE()[idx].sg_name_u, "MENU") == 0)
 	is_menu_group = TRUE;
@@ -1804,8 +1862,9 @@ do_highlight(
 	    {
 #if defined(FEAT_GUI) || defined(FEAT_EVAL)
 		if (highlight_set_guifg(idx, arg, is_menu_group,
-					  is_scrollbar_group, is_tooltip_group,
-							     &do_colors, init))
+			    is_scrollbar_group, is_tooltip_group,
+			    is_titlebar_group, is_titlebarnc_group,
+			    &do_colors, init))
 		    did_change = TRUE;
 #endif
 	    }
@@ -1814,6 +1873,7 @@ do_highlight(
 #if defined(FEAT_GUI) || defined(FEAT_EVAL)
 		if (highlight_set_guibg(idx, arg, is_menu_group,
 			    is_scrollbar_group, is_tooltip_group,
+			    is_titlebar_group, is_titlebarnc_group,
 			    &do_colors, init))
 		    did_change = TRUE;
 #endif
@@ -1875,6 +1935,18 @@ do_highlight(
 	    control_console_color_rgb();
 #endif
 	}
+#ifdef FEAT_GUI_MSWIN
+	else if (is_titlebar_group)
+	{
+	    if (gui.in_use && do_colors)
+		gui_mch_set_titlebar_colors();
+	}
+	else if (is_titlebarnc_group)
+	{
+	    if (gui.in_use && do_colors)
+		gui_mch_set_titlebar_colors();
+	}
+#endif
 #ifdef FEAT_GUI_X11
 # ifdef FEAT_MENU
 	else if (is_menu_group)
@@ -1927,7 +1999,7 @@ do_highlight(
     }
 }
 
-#if defined(EXITFREE) || defined(PROTO)
+#if defined(EXITFREE)
     void
 free_highlight(void)
 {
@@ -2045,11 +2117,11 @@ highlight_clear(int idx)
 #endif
 }
 
-#if defined(FEAT_GUI) || defined(FEAT_TERMGUICOLORS) || defined(PROTO)
+#if defined(FEAT_GUI) || defined(FEAT_TERMGUICOLORS)
 /*
  * Set the normal foreground and background colors according to the "Normal"
- * highlighting group.  For X11 also set "Menu", "Scrollbar", and
- * "Tooltip" colors.
+ * highlighting group.  For X11 also set "Menu", "Scrollbar" and "Tooltip"
+ * colors.  For MS-Windows also set "TitleBar" and "TitleBarNC" colors.
  */
     void
 set_normal_colors(void)
@@ -2066,6 +2138,22 @@ set_normal_colors(void)
 	    gui_mch_new_colors();
 	    set_must_redraw(UPD_CLEAR);
 	}
+#  ifdef FEAT_GUI_MSWIN
+	if (set_group_colors((char_u *)"TitleBar",
+				 &gui.title_fg_pixel, &gui.title_bg_pixel,
+				 FALSE, FALSE, FALSE))
+	{
+	    gui_mch_set_titlebar_colors();
+	    set_must_redraw(UPD_CLEAR);
+	}
+	if (set_group_colors((char_u *)"TitleBarNC",
+				 &gui.titlenc_fg_pixel, &gui.titlenc_bg_pixel,
+				 FALSE, FALSE, FALSE))
+	{
+	    gui_mch_set_titlebar_colors();
+	    set_must_redraw(UPD_CLEAR);
+	}
+#  endif
 #  ifdef FEAT_GUI_X11
 	if (set_group_colors((char_u *)"Menu",
 			     &gui.menu_fg_pixel, &gui.menu_bg_pixel,
@@ -2126,9 +2214,10 @@ set_normal_colors(void)
 }
 #endif
 
-#if defined(FEAT_GUI) || defined(PROTO)
+#if defined(FEAT_GUI)
 /*
- * Set the colors for "Normal", "Menu", "Tooltip" or "Scrollbar".
+ * Set the colors for "Normal", "Menu", "TitleBar", "TitleBarNC", "Tooltip" or
+ * "Scrollbar".
  */
     static int
 set_group_colors(
@@ -2359,7 +2448,7 @@ hl_do_font(
 
 #endif // FEAT_GUI
 
-#if defined(FEAT_GUI) || defined(FEAT_TERMGUICOLORS) || defined(PROTO)
+#if defined(FEAT_GUI) || defined(FEAT_TERMGUICOLORS)
 /*
  * Return the handle for a color name.
  * Returns INVALCOLOR when failed.
@@ -2744,7 +2833,7 @@ get_attr_entry(garray_T *table, attrentry_T *aep)
     return (table->ga_len - 1 + ATTR_OFF);
 }
 
-#if defined(FEAT_TERMINAL) || defined(PROTO)
+#if defined(FEAT_TERMINAL)
 /*
  * Get an attribute index for a cterm entry.
  * Uses an existing entry when possible or adds one when needed.
@@ -2769,7 +2858,7 @@ get_cterm_attr_idx(int attr, int fg, int bg)
 }
 #endif
 
-#if (defined(FEAT_TERMINAL) && defined(FEAT_TERMGUICOLORS)) || defined(PROTO)
+#if defined(FEAT_TERMINAL) && defined(FEAT_TERMGUICOLORS)
 /*
  * Get an attribute index for a 'termguicolors' entry.
  * Uses an existing entry when possible or adds one when needed.
@@ -2798,7 +2887,7 @@ get_tgc_attr_idx(int attr, guicolor_T fg, guicolor_T bg)
 }
 #endif
 
-#if (defined(FEAT_TERMINAL) && defined(FEAT_GUI)) || defined(PROTO)
+#if defined(FEAT_TERMINAL) && defined(FEAT_GUI)
 /*
  * Get an attribute index for a cterm entry.
  * Uses an existing entry when possible or adds one when needed.
@@ -3182,7 +3271,7 @@ highlight_list_arg(
     return didh;
 }
 
-#if (((defined(FEAT_EVAL) || defined(FEAT_PRINTER))) && defined(FEAT_SYN_HL)) || defined(PROTO)
+#if ((defined(FEAT_EVAL) || defined(FEAT_PRINTER))) && defined(FEAT_SYN_HL)
 /*
  * Return "1" if highlight group "id" has attribute "flag".
  * Return NULL otherwise.
@@ -3216,7 +3305,7 @@ highlight_has_attr(
 }
 #endif
 
-#if (defined(FEAT_SYN_HL) && defined(FEAT_EVAL)) || defined(PROTO)
+#if defined(FEAT_SYN_HL) && defined(FEAT_EVAL)
 /*
  * Return color name of highlight group "id".
  */
@@ -3307,9 +3396,9 @@ highlight_color(
 }
 #endif
 
-#if (defined(FEAT_SYN_HL) \
+#if defined(FEAT_SYN_HL) \
 	    && (defined(FEAT_GUI) || defined(FEAT_TERMGUICOLORS)) \
-	&& defined(FEAT_PRINTER)) || defined(PROTO)
+	&& defined(FEAT_PRINTER)
 /*
  * Return color name of highlight group "id" as RGB value.
  */
@@ -3520,7 +3609,7 @@ syn_name2attr(char_u *name)
     return 0;
 }
 
-#if defined(FEAT_EVAL) || defined(PROTO)
+#if defined(FEAT_EVAL)
 /*
  * Return TRUE if highlight group "name" exists.
  */
@@ -3530,7 +3619,7 @@ highlight_exists(char_u *name)
     return (syn_name2id(name) > 0);
 }
 
-# if defined(FEAT_SEARCH_EXTRA) || defined(PROTO)
+# if defined(FEAT_SEARCH_EXTRA)
 /*
  * Return the name of highlight group "id".
  * When not a valid ID return an empty string.
@@ -3686,6 +3775,8 @@ syn_id2attr(int hl_id)
     hl_group_T	*sgp;
 
     hl_id = syn_get_final_id(hl_id);
+    // shouldn't happen
+    assert(hl_id > 0);
     sgp = &HL_TABLE()[hl_id - 1];	    // index is ID minus one
 
 #ifdef FEAT_GUI
@@ -3702,7 +3793,7 @@ syn_id2attr(int hl_id)
     return attr;
 }
 
-#if defined(FEAT_GUI) || defined(FEAT_TERMGUICOLORS) || defined(PROTO)
+#if defined(FEAT_GUI) || defined(FEAT_TERMGUICOLORS)
 /*
  * Get the GUI colors and attributes for a group ID.
  * NOTE: the colors will be INVALCOLOR when not set, the color otherwise.
@@ -3713,6 +3804,8 @@ syn_id2colors(int hl_id, guicolor_T *fgp, guicolor_T *bgp)
     hl_group_T	*sgp;
 
     hl_id = syn_get_final_id(hl_id);
+    // shouldn't happen
+    assert(hl_id > 0);
     sgp = &HL_TABLE()[hl_id - 1];	    // index is ID minus one
 
     *fgp = sgp->sg_gui_fg;
@@ -3724,13 +3817,15 @@ syn_id2colors(int hl_id, guicolor_T *fgp, guicolor_T *bgp)
 #if (defined(MSWIN) \
 	    && (!defined(FEAT_GUI_MSWIN) || defined(VIMDLL)) \
 	    && defined(FEAT_TERMGUICOLORS)) \
-	|| defined(FEAT_TERMINAL) || defined(PROTO)
+	|| defined(FEAT_TERMINAL)
     void
 syn_id2cterm_bg(int hl_id, int *fgp, int *bgp)
 {
     hl_group_T	*sgp;
 
     hl_id = syn_get_final_id(hl_id);
+    // shouldn't happen
+    assert(hl_id > 0);
     sgp = &HL_TABLE()[hl_id - 1];	    // index is ID minus one
     *fgp = sgp->sg_cterm_fg - 1;
     *bgp = sgp->sg_cterm_bg - 1;
@@ -3762,7 +3857,7 @@ syn_get_final_id(int hl_id)
     return hl_id;
 }
 
-#if defined(FEAT_GUI) || defined(FEAT_TERMGUICOLORS) || defined(PROTO)
+#if defined(FEAT_GUI) || defined(FEAT_TERMGUICOLORS)
 /*
  * Call this function just after the GUI has started.
  * Also called when 'termguicolors' was set, gui.in_use will be FALSE then.
@@ -4572,7 +4667,7 @@ expand_highlight_group(
 	    -1);
 }
 
-#if defined(FEAT_GUI) || defined(PROTO)
+#if defined(FEAT_GUI)
 /*
  * Free all the highlight group fonts.
  * Used when quitting for systems which need it.
@@ -4604,7 +4699,7 @@ free_highlight_fonts(void)
 }
 #endif
 
-#if defined(FEAT_EVAL) || defined(PROTO)
+#if defined(FEAT_EVAL)
 /*
  * Convert each of the highlight attribute bits (bold, standout, underline,
  * etc.) set in 'hlattr' into a separate boolean item in a Dictionary with

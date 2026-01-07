@@ -41,7 +41,7 @@ typedef struct {
     int		bv_allocated;	// bv_string was allocated
 } bval_T;
 
-#if defined(FEAT_VIMINFO) || defined(PROTO)
+#if defined(FEAT_VIMINFO)
 
 static int  viminfo_errcnt;
 
@@ -99,6 +99,8 @@ viminfo_filename(char_u *file)
 {
     if (file == NULL || *file == NUL)
     {
+	size_t  len;
+
 	if (*p_viminfofile != NUL)
 	    file = p_viminfofile;
 	else if ((file = find_viminfo_parameter('n')) == NULL || *file == NUL)
@@ -127,9 +129,12 @@ viminfo_filename(char_u *file)
 #endif
 		file = (char_u *)VIMINFO_FILE;
 	}
-	expand_env(file, NameBuff, MAXPATHL);
+	len = expand_env(file, NameBuff, MAXPATHL);
 	file = NameBuff;
+
+	return vim_strnsave(file, len);
     }
+
     return vim_strsave(file);
 }
 
@@ -1237,7 +1242,7 @@ viminfo_encoding(vir_T *virp)
     return viminfo_readline(virp);
 }
 
-#if defined(FEAT_EVAL) || defined(PROTO)
+#if defined(FEAT_EVAL)
 /*
  * Restore global vars that start with a capital from the viminfo file
  */
@@ -1606,7 +1611,7 @@ static yankreg_T *y_read_regs = NULL;
     static void
 prepare_viminfo_registers(void)
 {
-     y_read_regs = ALLOC_CLEAR_MULT(yankreg_T, NUM_REGISTERS);
+    y_read_regs = ALLOC_CLEAR_MULT(yankreg_T, NUM_REGISTERS);
 }
 
     static void

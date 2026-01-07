@@ -16,11 +16,11 @@ Closes: #1091729
  4 files changed, 19 insertions(+), 33 deletions(-)
 
 diff --git a/runtime/doc/popup.txt b/runtime/doc/popup.txt
-index ba87b31..e7526ec 100644
+index 41f4da5..8c6bc32 100644
 --- a/runtime/doc/popup.txt
 +++ b/runtime/doc/popup.txt
-@@ -705,6 +705,7 @@ The second argument of |popup_create()| is a dictionary with options:
- 			present. Use zero to reset.
+@@ -713,6 +713,7 @@ The second argument of |popup_create()| is a dictionary with options:
+ 			present.  Use zero to reset.
  	fixed		When FALSE (the default), and:
  			 - "pos" is "botleft" or "topleft", and
 +			 - "wrap" is off, and
@@ -28,10 +28,10 @@ index ba87b31..e7526ec 100644
  			   the screen, then
  			the popup is moved to the left so as to fit the
 diff --git a/src/popupwin.c b/src/popupwin.c
-index 60a54d7..bb4c550 100644
+index 96f669a..53e2e86 100644
 --- a/src/popupwin.c
 +++ b/src/popupwin.c
-@@ -1433,7 +1433,17 @@ popup_adjust_position(win_T *wp)
+@@ -1443,7 +1443,17 @@ popup_adjust_position(win_T *wp)
  	len = linetabsize(wp, lnum);
  	wp->w_width = w_width;
  
@@ -50,7 +50,7 @@ index 60a54d7..bb4c550 100644
  		&& allow_adjust_left
  		&& (wp->w_popup_pos == POPPOS_TOPLEFT
  		    || wp->w_popup_pos == POPPOS_BOTLEFT))
-@@ -1445,6 +1455,7 @@ popup_adjust_position(win_T *wp)
+@@ -1455,6 +1465,7 @@ popup_adjust_position(win_T *wp)
  	    {
  		int truncate_shift = shift_by - wp->w_wincol;
  
@@ -58,7 +58,7 @@ index 60a54d7..bb4c550 100644
  		shift_by -= truncate_shift;
  	    }
  
-@@ -1452,16 +1463,6 @@ popup_adjust_position(win_T *wp)
+@@ -1462,16 +1473,6 @@ popup_adjust_position(win_T *wp)
  	    maxwidth += shift_by;
  	    wp->w_width = maxwidth;
  	}
@@ -76,10 +76,10 @@ index 60a54d7..bb4c550 100644
  	{
  	    wp->w_width = len + margin_width;
 diff --git a/src/testdir/test_popupwin.vim b/src/testdir/test_popupwin.vim
-index 3c8e5d7..7920443 100644
+index 4b616a8..6894aba 100644
 --- a/src/testdir/test_popupwin.vim
 +++ b/src/testdir/test_popupwin.vim
-@@ -31,7 +31,7 @@ func Test_simple_popup()
+@@ -29,7 +29,7 @@ func Test_simple_popup()
  	\ .. "#{text: 'a comment line', props: [#{"
  	\ .. "col: 3, length: 7, minwidth: 20, type: 'comment'"
  	\ .. "}]},"
@@ -88,7 +88,7 @@ index 3c8e5d7..7920443 100644
    call VerifyScreenDump(buf, 'Test_popupwin_02', {})
  
    " switch back to first tabpage
-@@ -87,7 +87,7 @@ func Test_popup_with_border_and_padding()
+@@ -85,7 +85,7 @@ func Test_popup_with_border_and_padding()
  	  call popup_create('hello both', #{line: 2, col: 43, border: [], padding: [], highlight: 'Normal'})
  	  call popup_create('border TL', #{line: 6, col: 3, border: [1, 0, 0, 4]})
  	  call popup_create('paddings', #{line: 6, col: 23, padding: range(1, 4)})
@@ -97,7 +97,7 @@ index 3c8e5d7..7920443 100644
  	  call popup_create('right aligned text', #{line: 11, col: 56, wrap: 0, padding: [0, 3, 0, 3], border: [0, 1, 0, 1]})
  	  call popup_create('X', #{line: 2, col: 73})
  	  call popup_create('X', #{line: 3, col: 74})
-@@ -1970,7 +1970,7 @@ func Test_popup_position_adjust()
+@@ -1969,7 +1969,7 @@ func Test_popup_position_adjust()
    " Anything placed past the last cell on the right of the screen is moved to
    " the left.
    "
@@ -106,7 +106,7 @@ index 3c8e5d7..7920443 100644
    " screen, unless fixed is set.
  
    " Entries for cases which don't vary based on wrapping.
-@@ -1995,10 +1995,9 @@ func Test_popup_position_adjust()
+@@ -1994,10 +1994,9 @@ func Test_popup_position_adjust()
    "     - expected height
    let tests = [
  	\ #{
@@ -118,7 +118,7 @@ index 3c8e5d7..7920443 100644
  	\     pos: 'botleft',
  	\   },
  	\   tests: both_wrap_tests + [
-@@ -2023,22 +2022,9 @@ func Test_popup_position_adjust()
+@@ -2022,22 +2021,9 @@ func Test_popup_position_adjust()
  	\   ],
  	\ },
  	\ #{
@@ -142,7 +142,7 @@ index 3c8e5d7..7920443 100644
  	\     pos: 'botleft',
  	\   },
  	\   tests: both_wrap_tests + [
-@@ -2062,7 +2048,7 @@ func Test_popup_position_adjust()
+@@ -2061,7 +2047,7 @@ func Test_popup_position_adjust()
  	\   ],
  	\ },
  	\ #{
@@ -152,10 +152,10 @@ index 3c8e5d7..7920443 100644
  	\     wrap: 0,
  	\     fixed: 1,
 diff --git a/src/version.c b/src/version.c
-index a2cfb00..6091dcd 100644
+index 2526c09..92397ee 100644
 --- a/src/version.c
 +++ b/src/version.c
-@@ -1576,8 +1576,6 @@ static int included_patches[] =
+@@ -2578,8 +2578,6 @@ static int included_patches[] =
      951,
  /**/
      950,

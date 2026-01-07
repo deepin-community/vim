@@ -194,6 +194,20 @@ redraw_for_cursorcolumn(win_T *wp)
 #endif
 
 /*
+ * Set wp->w_virtcol to a value ("vcol") that is already valid.
+ * Handles redrawing if wp->w_virtcol was previously invalid.
+ */
+    void
+set_valid_virtcol(win_T *wp, colnr_T vcol)
+{
+    wp->w_virtcol = vcol;
+#ifdef FEAT_SYN_HL
+    redraw_for_cursorcolumn(wp);
+#endif
+    wp->w_valid |= VALID_VIRTCOL;
+}
+
+/*
  * Calculates how much the 'listchars' "precedes" or 'smoothscroll' "<<<"
  * marker overlaps with buffer text for window "wp".
  * Parameter "extra2" should be the padding on the 2nd line, not the first
@@ -201,7 +215,7 @@ redraw_for_cursorcolumn(win_T *wp)
  * Returns the number of columns of overlap with buffer text, excluding the
  * extra padding on the ledge.
  */
-     int
+    int
 sms_marker_overlap(win_T *wp, int extra2)
 {
     if (extra2 == -1)
@@ -662,7 +676,7 @@ changed_window_setting_win(win_T *wp)
     redraw_win_later(wp, UPD_NOT_VALID);
 }
 
-#if defined(FEAT_PROP_POPUP) || defined(PROTO)
+#if defined(FEAT_PROP_POPUP)
 /*
  * Call changed_window_setting_win() for every window containing "buf".
  */
@@ -761,7 +775,7 @@ changed_line_abv_curs_win(win_T *wp)
 						|VALID_CHEIGHT|VALID_TOPLINE);
 }
 
-#if defined(FEAT_PROP_POPUP) || defined(PROTO)
+#if defined(FEAT_PROP_POPUP)
 /*
  * Display of line has changed for "buf", invalidate cursor position and
  * w_botline.
@@ -844,7 +858,7 @@ validate_cursor(void)
 	curs_columns(TRUE);
 }
 
-#if defined(FEAT_GUI) || defined(PROTO)
+#if defined(FEAT_GUI)
 /*
  * validate w_cline_row.
  */
@@ -1428,7 +1442,7 @@ curs_columns(
     curwin->w_valid |= VALID_WCOL|VALID_WROW|VALID_VIRTCOL;
 }
 
-#if (defined(FEAT_EVAL) || defined(FEAT_PROP_POPUP)) || defined(PROTO)
+#if defined(FEAT_EVAL) || defined(FEAT_PROP_POPUP)
 /*
  * Compute the screen position of text character at "pos" in window "wp"
  * The resulting values are one-based, zero when character is not visible.
@@ -1514,7 +1528,7 @@ textpos2screenpos(
 }
 #endif
 
-#if defined(FEAT_EVAL) || defined(PROTO)
+#if defined(FEAT_EVAL)
 /*
  * "screenpos({winid}, {lnum}, {col})" function
  */
@@ -1783,7 +1797,7 @@ scrolldown(
     for (int todo = line_count; todo > 0; --todo)
     {
 #ifdef FEAT_DIFF
-	if (curwin->w_topfill < diff_check(curwin, curwin->w_topline)
+	if (curwin->w_topfill < diff_check_fill(curwin, curwin->w_topline)
 		&& curwin->w_topfill < curwin->w_height - 1)
 	{
 	    ++curwin->w_topfill;
@@ -3215,10 +3229,10 @@ static int scroll_with_sms(int dir, long count, long *curscount)
 
 	int width1 = curwin->w_width - curwin_col_off();
 	int width2 = width1 + curwin_col_off2();
-	count = 1 + (curwin->w_skipcol - width1) / width2;
+	count = 1 + (curwin->w_skipcol - width1 - 1) / width2;
 	if (fixdir == FORWARD)
-	    count = 2 + (linetabsize_eol(curwin, curwin->w_topline)
-					- curwin->w_skipcol - width1) / width2;
+	    count = 1 + (linetabsize_eol(curwin, curwin->w_topline)
+			    - curwin->w_skipcol - width1 + width2 - 1) / width2;
 	scroll_redraw(fixdir == FORWARD, count);
 	*curscount += count * (fixdir == dir ? 1 : -1);
     }

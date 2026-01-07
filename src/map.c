@@ -1118,7 +1118,7 @@ map_clear_mode(
     }
 }
 
-#if defined(FEAT_EVAL) || defined(PROTO)
+#if defined(FEAT_EVAL)
     int
 mode_str2flags(char_u *modechars)
 {
@@ -1433,7 +1433,7 @@ ExpandMappings(
 	else
 	{
 	    score = fuzzy_match_str(p, pat);
-	    match = (score != 0);
+	    match = (score != FUZZY_SCORE_NONE);
 	}
 
 	if (!match)
@@ -1480,7 +1480,7 @@ ExpandMappings(
 	    else
 	    {
 		score = fuzzy_match_str(p, pat);
-		match = (score != 0);
+		match = (score != FUZZY_SCORE_NONE);
 	    }
 
 	    if (!match)
@@ -2180,7 +2180,18 @@ put_escstr(FILE *fd, char_u *strstart, int what)
 	    {
 		modifiers = str[2];
 		str += 3;
-		c = *str;
+
+		// Modifiers can be applied too to multi-byte characters.
+		p = mb_unescape(&str);
+
+		if (p == NULL)
+		    c = *str;
+		else
+		{
+		    // retrieve codepoint (character number) from unescaped string
+		    c = (*mb_ptr2char)(p);
+		    --str;
+		}
 	    }
 	    if (c == K_SPECIAL)
 	    {
@@ -2320,7 +2331,7 @@ check_map_keycodes(void)
     estack_pop();
 }
 
-#if defined(FEAT_EVAL) || defined(PROTO)
+#if defined(FEAT_EVAL)
 /*
  * Check the string "keys" against the lhs of all mappings.
  * Return pointer to rhs of mapping (mapblock->m_str).
@@ -2970,7 +2981,7 @@ add_map(char_u *map, int mode, int nore)
     p_cpo = cpo_save;
 }
 
-#if defined(FEAT_LANGMAP) || defined(PROTO)
+#if defined(FEAT_LANGMAP)
 /*
  * Any character has an equivalent 'langmap' character.  This is used for
  * keyboards that have a special language mode that sends characters above

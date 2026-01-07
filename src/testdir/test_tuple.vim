@@ -1,6 +1,6 @@
 " Tests for the Tuple types
 
-import './vim9.vim' as v9
+import './util/vim9.vim' as v9
 
 func TearDown()
   " Run garbage collection after every test
@@ -1575,6 +1575,28 @@ func Test_try_finally_with_tuple_return()
   call v9.CheckSourceSuccess(lines)
 endfunc
 
+" Test for evaluating a recursive tuple that results in an error
+func Test_recursive_tuple_eval_fails()
+  let lines =<< trim END
+    call assert_fails(((((((((((((((('tag xyz', func2(pat, flags, infn)
+  END
+  call v9.CheckSourceLegacyAndVim9Failure(lines, [
+        \ 'E121: Undefined variable: pat',
+        \ 'E1001: Variable not found: pat',
+        \ 'E121: Undefined variable: pat'])
+endfunc
+
+" The following used to crash Vim
+func Test_import_invalid_tuple()
+  let lines =<< trim END
+    imp(",G0}11*f[+\x","#|
+  END
+  new
+  call setline(1, lines)
+  call assert_fails('source', 'E114: Missing double quote: "#|')
+  bw!
+endfunc
+
 " Test for add() with a tuple
 func Test_tuple_add()
   let lines =<< trim END
@@ -1973,21 +1995,12 @@ func Test_tuple_max()
   call v9.CheckSourceFailure(lines, 'E1030: Using a String as a Number: "b"')
 
   let lines =<< trim END
-    vim9script
-    def Fn()
-      var x = max(('a', 'b'))
-    enddef
-    Fn()
-  END
-  call v9.CheckSourceFailure(lines, 'E1030: Using a String as a Number: "a"')
-
-  let lines =<< trim END
     echo max([('a', 'b'), 20])
   END
   call v9.CheckSourceLegacyAndVim9Failure(lines, [
-        \ 'E1520: Using a Tuple as a Number',
-        \ 'E1520: Using a Tuple as a Number',
-        \ 'E1520: Using a Tuple as a Number'])
+        \ 'E1517: Can only compare Tuple with Tuple',
+        \ 'E1517: Can only compare Tuple with Tuple',
+        \ 'E1517: Can only compare Tuple with Tuple'])
 endfunc
 
 " Test for min()
@@ -2013,16 +2026,6 @@ func Test_tuple_min()
     var x = min((1, 'b'))
   END
   call v9.CheckSourceFailure(lines, 'E1030: Using a String as a Number: "b"')
-
-
-  let lines =<< trim END
-    vim9script
-    def Fn()
-      var x = min(('a', 'b'))
-    enddef
-    Fn()
-  END
-  call v9.CheckSourceFailure(lines, 'E1030: Using a String as a Number: "a"')
 endfunc
 
 " Test for reduce()
