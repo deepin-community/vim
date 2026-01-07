@@ -1,5 +1,6 @@
 " Vim :set command
 
+
 set
 set!
 set all
@@ -37,12 +38,17 @@ set backspace-=nostop
 
 set ai nosi sw=3 tw=3
 
-set <t_#4>=^[Ot " FIXME
-set <M-b>=^[b   " FIXME
+set <t_#4>=^[Ot
+set <M-b>=^[b
 
 setlocal autoread
 setglobal noautoread
 set autoread<
+
+set " comment
+set | echo "Foo"
+set! " comment
+set! | echo "Foo"
 
 
 " :help option-backslash
@@ -120,5 +126,6 @@ set langmap+=ЯЧСМИТЬБЮ;ZXCVBNM<>
 set langmap+=ФЫВАПРОЛДЖЭЁ;ASDFGHJKL\\:\\"\\|
       \ langmap+=ЯЧСМИТЬБЮ;ZXCVBNM<>
 
-set langmap+=ФЫВАПРОЛДЖЭЁ;ASDFGHJKL\\:\\"\\| langmap+=ЯЧСМИТЬБЮ;ZXCVBNM<>
+set langmap+=ФЫВАПР;ASDFGH langmap+=ОЛДЖЭЁ;JKL\\:\\"\\|
+      \ langmap+=ЯЧСМИ;ZXCVB langmap+=ТЬБЮ;NM<>
 

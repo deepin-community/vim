@@ -167,7 +167,7 @@ read_buffer(
     return retval;
 }
 
-#if defined(FEAT_EVAL) || defined(PROTO)
+#if defined(FEAT_EVAL)
 /*
  * Ensure buffer "buf" is loaded.  Does not trigger the swap-exists action.
  */
@@ -909,7 +909,7 @@ buf_freeall(buf_T *buf, int flags)
     // If the buffer was in curwin and the window has changed, go back to that
     // window, if it still exists.  This avoids that ":edit x" triggering a
     // "tabnext" BufUnload autocmd leaves a window behind without a buffer.
-    if (is_curwin && curwin != the_curwin &&  win_valid_any_tab(the_curwin))
+    if (is_curwin && curwin != the_curwin && win_valid_any_tab(the_curwin))
     {
 	block_autocmds();
 	goto_tabpage_win(the_curtab, the_curwin);
@@ -1371,8 +1371,11 @@ do_buffer_ext(
     }
     else
     {
+	int help_only = (flags & DOBUF_SKIPHELP) != 0 && buf->b_help;
+
 	bp = NULL;
-	while (count > 0 || (!unload && !buf->b_p_bl && bp != buf))
+	while (count > 0 || (bp != buf && !unload
+				&& !(help_only ? buf->b_help : buf->b_p_bl)))
 	{
 	    // remember the buffer where we start, we come back there when all
 	    // buffers are unlisted.
@@ -1390,14 +1393,17 @@ do_buffer_ext(
 		if (buf == NULL)
 		    buf = lastbuf;
 	    }
+	    // Avoid non-help buffers if the starting point was a help buffer
+	    // and vice-versa.
 	    // Don't count unlisted buffers.
-	    // Avoid non-help buffers if the starting point was a non-help buffer and
-	    // vice-versa.
-	    if (unload || (buf->b_p_bl
-			&& ((flags & DOBUF_SKIPHELP) == 0 || buf->b_help == bp->b_help)))
+	    if (unload
+		    || (help_only
+			? buf->b_help
+			: (buf->b_p_bl && ((flags & DOBUF_SKIPHELP) == 0
+							    || !buf->b_help))))
 	    {
-		 --count;
-		 bp = NULL;	// use this buffer as new starting point
+		--count;
+		bp = NULL;	// use this buffer as new starting point
 	    }
 	    if (bp == buf)
 	    {
@@ -1997,9 +2003,6 @@ enter_buffer(buf_T *buf)
     // mark cursor position as being invalid
     curwin->w_valid = 0;
 
-    buflist_setfpos(curbuf, curwin, curbuf->b_last_cursor.lnum,
-					      curbuf->b_last_cursor.col, TRUE);
-
     // Make sure the buffer is loaded.
     if (curbuf->b_ml.ml_mfp == NULL)	// need to load the file
     {
@@ -2063,7 +2066,7 @@ enter_buffer(buf_T *buf)
     redraw_later(UPD_NOT_VALID);
 }
 
-#if defined(FEAT_AUTOCHDIR) || defined(PROTO)
+#if defined(FEAT_AUTOCHDIR)
 /*
  * Change to the directory of the current buffer.
  * Don't do this while still starting up.
@@ -2220,13 +2223,14 @@ buflist_new(
     buf = NULL;
     if ((flags & BLN_CURBUF) && curbuf_reusable())
     {
+	bufref_T bufref;
+
 	buf = curbuf;
+	set_bufref(&bufref, buf);
 	trigger_undo_ftplugin(buf, curwin);
 	// It's like this buffer is deleted.  Watch out for autocommands that
 	// change curbuf!  If that happens, allocate a new buffer anyway.
 	buf_freeall(buf, BFA_WIPE | BFA_DEL);
-	if (buf != curbuf)   // autocommands deleted the buffer!
-	    return NULL;
 #ifdef FEAT_EVAL
 	if (aborting())		// autocmds may abort script processing
 	{
@@ -2234,6 +2238,8 @@ buflist_new(
 	    return NULL;
 	}
 #endif
+	if (!bufref_valid(&bufref))
+	    buf = NULL;		// buf was deleted; allocate a new buffer
     }
     if (buf != curbuf || curbuf == NULL)
     {
@@ -2503,8 +2509,11 @@ free_buf_options(
     free_callback(&buf->b_ofu_cb);
     clear_string_option(&buf->b_p_tsrfu);
     free_callback(&buf->b_tsrfu_cb);
+    clear_cpt_callbacks(&buf->b_p_cpt_cb, buf->b_p_cpt_count);
+    buf->b_p_cpt_count = 0;
 #endif
 #ifdef FEAT_QUICKFIX
+    clear_string_option(&buf->b_p_gefm);
     clear_string_option(&buf->b_p_gp);
     clear_string_option(&buf->b_p_mp);
     clear_string_option(&buf->b_p_efm);
@@ -2520,8 +2529,12 @@ free_buf_options(
     free_callback(&buf->b_ffu_cb);
 #endif
     clear_string_option(&buf->b_p_dict);
+#ifdef FEAT_DIFF
+    clear_string_option(&buf->b_p_dia);
+#endif
     clear_string_option(&buf->b_p_tsr);
     clear_string_option(&buf->b_p_qe);
+    buf->b_p_ac = -1;
     buf->b_p_ar = -1;
     buf->b_p_ul = NO_LOCAL_UNDOLEVEL;
     clear_string_option(&buf->b_p_lw);
@@ -2933,12 +2946,14 @@ ExpandBufnames(
 	    {
 		p = NULL;
 		// first try matching with the short file name
-		if ((score = fuzzy_match_str(buf->b_sfname, pat)) != 0)
+		if ((score = fuzzy_match_str(buf->b_sfname, pat))
+			!= FUZZY_SCORE_NONE)
 		    p = buf->b_sfname;
 		if (p == NULL)
 		{
 		    // next try matching with the full path file name
-		    if ((score = fuzzy_match_str(buf->b_ffname, pat)) != 0)
+		    if ((score = fuzzy_match_str(buf->b_ffname, pat))
+			    != FUZZY_SCORE_NONE)
 			p = buf->b_ffname;
 		}
 	    }
@@ -2957,7 +2972,11 @@ ExpandBufnames(
 	    else
 		p = vim_strsave(p);
 	    if (p == NULL)
+	    {
+		if (fuzzy && round == 2)
+		    fuzmatch_str_free(fuzmatch, count);
 		return FAIL;
+	    }
 
 	    if (!fuzzy)
 	    {
@@ -3749,7 +3768,7 @@ buflist_add(char_u *fname, int flags)
     return 0;
 }
 
-#if defined(BACKSLASH_IN_FILENAME) || defined(PROTO)
+#if defined(BACKSLASH_IN_FILENAME)
 /*
  * Adjust slashes in file names.  Called after 'shellslash' was set.
  */
@@ -3837,7 +3856,7 @@ otherfile_buf(
     return TRUE;
 }
 
-#if defined(UNIX) || defined(PROTO)
+#if defined(UNIX)
 /*
  * Set inode and device number for a buffer.
  * Must always be called when b_fname is changed!.
@@ -4276,7 +4295,7 @@ resettitle(void)
     mch_settitle(lasttitle, lasticon);
 }
 
-# if defined(EXITFREE) || defined(PROTO)
+# if defined(EXITFREE)
     void
 free_titles(void)
 {
@@ -4286,7 +4305,7 @@ free_titles(void)
 # endif
 
 
-#if defined(FEAT_STL_OPT) || defined(FEAT_GUI_TABLINE) || defined(PROTO)
+#if defined(FEAT_STL_OPT) || defined(FEAT_GUI_TABLINE)
 
 /*
  * Used for building in the status line.
@@ -4404,7 +4423,7 @@ build_stl_str_hl(
 
 #ifdef FEAT_EVAL
     // if "fmt" was set insecurely it needs to be evaluated in the sandbox
-    use_sandbox = was_set_insecurely(opt_name, opt_scope);
+    use_sandbox = was_set_insecurely(wp, opt_name, opt_scope);
 
     // When the format starts with "%!" then evaluate it as an expression and
     // use the result as the actual format string.
@@ -5407,9 +5426,11 @@ get_rel_pos(
 	return (int)vim_snprintf_safelen((char *)buf, buflen,
 	    "%s", _("Top"));
 
+    int perc = calc_percentage(above, above + below);
+    char tmp[8];
     // localized percentage value
-    return (int)vim_snprintf_safelen((char *)buf, buflen,
-	_("%2d%%"), calc_percentage(above, above + below));
+    vim_snprintf(tmp, sizeof(tmp), _("%d%%"), perc);
+    return (int)vim_snprintf_safelen((char *)buf, buflen, _("%2s"), tmp);
 }
 
 /*
@@ -5452,7 +5473,8 @@ fix_fname(char_u  *fname)
      * Also expand when there is ".." in the file name, try to remove it,
      * because "c:/src/../README" is equal to "c:/README".
      * Similarly "c:/src//file" is equal to "c:/src/file".
-     * For MS-Windows also expand names like "longna~1" to "longname".
+     * For MS-Windows also expand names like "longna~1" to "longname"
+     * and provide drive letter for all absolute paths.
      */
 #ifdef UNIX
     return FullName_save(fname, TRUE);
@@ -5465,6 +5487,8 @@ fix_fname(char_u  *fname)
 # endif
 # if defined(MSWIN)
 	    || vim_strchr(fname, '~') != NULL
+	    || fname[0] == '/'
+	    || fname[0] == '\\'
 # endif
 	    )
 	return FullName_save(fname, FALSE);
@@ -5962,7 +5986,7 @@ bt_prompt(buf_T *buf)
     return buf != NULL && buf->b_p_bt[0] == 'p' && buf->b_p_bt[1] == 'r';
 }
 
-#if defined(FEAT_PROP_POPUP) || defined(PROTO)
+#if defined(FEAT_PROP_POPUP)
 /*
  * Return TRUE if "buf" is a buffer for a popup window.
  */
@@ -6001,7 +6025,7 @@ bt_nofileread(buf_T *buf)
 	    || buf->b_p_bt[0] == 'p');
 }
 
-#if defined(FEAT_QUICKFIX) || defined(PROTO)
+#if defined(FEAT_QUICKFIX)
 /*
  * Return TRUE if "buf" has 'buftype' set to "nofile".
  */

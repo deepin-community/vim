@@ -1,10 +1,8 @@
 " Tests specifically for the GUI
 
-source shared.vim
-source check.vim
 CheckCanRunGui
 
-source setup_gui.vim
+source util/setup_gui.vim
 
 func Setup()
   call GUISetUpCommon()
@@ -664,6 +662,13 @@ func Test_set_guioptions()
   if has('win32')
     " Default Value
     set guioptions&
+    call assert_equal('egmrLtT', &guioptions)
+
+    set guioptions+=C
+    exec 'sleep' . duration
+    call assert_equal('egmrLtTC', &guioptions)
+    set guioptions-=C
+    exec 'sleep' . duration
     call assert_equal('egmrLtT', &guioptions)
 
   else
@@ -1745,6 +1750,61 @@ endfunc
 func Test_gui_csi_keytrans()
   call assert_equal('<C-L>', keytrans("\x9b\xfc\x04L"))
   call assert_equal('<C-D>', keytrans("\x9b\xfc\x04D"))
+endfunc
+
+" Test that CursorHold is NOT triggered at startup before a keypress
+func Test_CursorHold_not_triggered_at_startup()
+  defer delete('Xcursorhold.log')
+  defer delete('Xcursorhold_test.vim')
+  call writefile([
+        \ 'set updatetime=300',
+        \ 'let g:cursorhold_triggered = 0',
+        \ 'autocmd CursorHold * let g:cursorhold_triggered += 1 | call writefile(["CursorHold triggered"], "Xcursorhold.log", "a")',
+        \ 'call timer_start(400, {-> execute(''call writefile(["g:cursorhold_triggered=" . g:cursorhold_triggered], "Xcursorhold.log", "a") | qa!'')})',
+        \ ], 'Xcursorhold_test.vim')
+
+  let vimcmd = v:progpath . ' -g -f -N -u NONE -i NONE -S Xcursorhold_test.vim'
+  call system(vimcmd)
+
+  let lines = filereadable('Xcursorhold.log') ? readfile('Xcursorhold.log') : []
+
+  " Assert that CursorHold did NOT trigger at startup
+  call assert_false(index(lines, 'CursorHold triggered') != -1)
+  let found = filter(copy(lines), 'v:val =~ "^g:cursorhold_triggered="')
+  call assert_equal(['g:cursorhold_triggered=0'], found)
+endfunc
+
+" Test that Buffers menu generates the correct index for different buffer
+" names for sorting.
+func Test_Buffers_Menu()
+  doautocmd LoadBufferMenu VimEnter
+
+  " Non-ASCII characters only use the first character as idx
+  let idx_emoji = or(char2nr('😑'), 0x40000000)
+
+  " Only first five letters are used for alphanumeric:
+  " ('a'-32) << 24 + ('b'-32) << 18 + ('c'-32) << 12 + ('d'-32) << 6 + ('e'-32)
+  let idx_abcde = 0x218A3925
+  " ('a'-32) << 24 + ('b'-32) << 18 + ('c'-32) << 12 + ('d'-32) << 6 + ('f'-32)
+  let idx_abcdf = 0x218A3926
+  " ('a'-32) << 24 + 63 (clamped) << 18 + ('c'-32) << 12 + ('d'-32) << 6 + ('e'-32)
+  let idx_a_emoji_cde = 0x21FE3925
+
+  let names = ['😑', '😑1', '😑2', 'abcde', 'abcdefghi', 'abcdf', 'a😑cde']
+  let indices = [idx_emoji, idx_emoji, idx_emoji, idx_abcde, idx_abcde, idx_abcdf, idx_a_emoji_cde]
+  for i in range(len(names))
+    let name = names[i]
+    let idx = indices[i]
+    exe ':badd ' .. name
+    let nr = bufnr('$')
+
+    let cmd = printf(':amenu Buffers.%s\ (%d)', name, nr)
+    let menu = split(execute(cmd), '\n')[1]
+    call assert_inrange(0, 0x7FFFFFFF, idx)
+    call assert_match('^' .. idx .. ' '.. name, menu)
+  endfor
+
+  %bw!
 endfunc
 
 " vim: shiftwidth=2 sts=2 expandtab

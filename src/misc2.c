@@ -60,11 +60,8 @@ coladvance_force(colnr_T wcol)
     if (wcol == MAXCOL)
 	curwin->w_valid &= ~VALID_VIRTCOL;
     else
-    {
 	// Virtcol is valid
-	curwin->w_valid |= VALID_VIRTCOL;
-	curwin->w_virtcol = wcol;
-    }
+	set_valid_virtcol(curwin, wcol);
     return rc;
 }
 
@@ -101,11 +98,8 @@ coladvance(colnr_T wantcol)
     if (wantcol == MAXCOL || rc == FAIL)
 	curwin->w_valid &= ~VALID_VIRTCOL;
     else if (*ml_get_cursor() != TAB)
-    {
 	// Virtcol is valid when not on a TAB
-	curwin->w_valid |= VALID_VIRTCOL;
-	curwin->w_virtcol = wantcol;
-    }
+	set_valid_virtcol(curwin, wantcol);
     return rc;
 }
 
@@ -771,7 +765,7 @@ copy_option_part(
     return len;
 }
 
-#ifndef HAVE_MEMSET
+#if !defined(HAVE_MEMSET) && !defined(PROTO)
     void *
 vim_memset(void *ptr, int c, size_t size)
 {
@@ -1213,7 +1207,7 @@ handle_x_keys(int key)
 get_special_key_name(int c, int modifiers)
 {
     static char_u string[MAX_KEY_NAME_LEN + 1];
-    int	    i, idx;
+    int	    i, idx, len;
     int	    table_idx;
 
     string[0] = '<';
@@ -1286,10 +1280,11 @@ get_special_key_name(int c, int modifiers)
 	// Not a special key, only modifiers, output directly
 	else
 	{
-	    if (has_mbyte && (*mb_char2len)(c) > 1)
-		idx += (*mb_char2bytes)(c, string + idx);
-	    else if (vim_isprintc(c))
+	    len = (*mb_char2len)(c);
+	    if (len == 1 && vim_isprintc(c))
 		string[idx++] = c;
+	    else if (has_mbyte && len > 1)
+		idx += (*mb_char2bytes)(c, string + idx);
 	    else
 	    {
 		char_u	*s = transchar(c);
@@ -1879,6 +1874,9 @@ set_fileformat(
     // This may cause the buffer to become (un)modified.
     check_status(curbuf);
     redraw_tabline = TRUE;
+#if defined(FEAT_TABPANEL)
+    redraw_tabpanel = TRUE;
+#endif
     need_maketitle = TRUE;	    // set window title later
 }
 
@@ -2048,8 +2046,7 @@ same_directory(char_u *f1, char_u *f2)
 
 #if defined(FEAT_SESSION) || defined(FEAT_AUTOCHDIR) \
 	|| defined(MSWIN) || defined(FEAT_GUI_GTK) \
-	|| defined(FEAT_NETBEANS_INTG) \
-	|| defined(PROTO)
+	|| defined(FEAT_NETBEANS_INTG)
 /*
  * Change to a file's directory.
  * Caller must call shorten_fnames()!
@@ -2084,7 +2081,7 @@ vim_chdirfile(char_u *fname, char *trigger_autocmd)
 }
 #endif
 
-#if defined(STAT_IGNORES_SLASH) || defined(PROTO)
+#if defined(STAT_IGNORES_SLASH)
 /*
  * Check if "name" ends in a slash and is not a directory.
  * Used for systems where stat() ignores a trailing slash on a file name.
@@ -2114,7 +2111,7 @@ vim_stat(const char *name, stat_T *stp)
 }
 #endif
 
-#if defined(CURSOR_SHAPE) || defined(PROTO)
+#if defined(CURSOR_SHAPE)
 
 /*
  * Handling of cursor and mouse pointer shapes in various modes.
@@ -2422,7 +2419,7 @@ parse_shape_opt(int what)
 }
 
 # if defined(MCH_CURSOR_SHAPE) || defined(FEAT_GUI) \
-	|| defined(FEAT_MOUSESHAPE) || defined(PROTO)
+	|| defined(FEAT_MOUSESHAPE)
 /*
  * Return the index into shape_table[] for the current mode.
  * When "mouse" is TRUE, consider indexes valid for the mouse pointer.
@@ -2475,7 +2472,7 @@ get_shape_idx(int mouse)
 }
 #endif
 
-# if defined(FEAT_MOUSESHAPE) || defined(PROTO)
+# if defined(FEAT_MOUSESHAPE)
 static int current_mouse_shape = 0;
 
 /*
@@ -2529,7 +2526,7 @@ update_mouseshape(int shape_idx)
 
 #endif // CURSOR_SHAPE
 
-#if defined(FEAT_EVAL) || defined(PROTO)
+#if defined(FEAT_EVAL)
 /*
  * Mainly for tests: get the name of the current mouse shape.
  */
@@ -2538,7 +2535,7 @@ f_getmouseshape(typval_T *argvars UNUSED, typval_T *rettv)
 {
     rettv->v_type = VAR_STRING;
     rettv->vval.v_string = NULL;
-# if defined(FEAT_MOUSESHAPE) || defined(PROTO)
+# if defined(FEAT_MOUSESHAPE)
     if (current_mouse_shape >= 0
 			      && current_mouse_shape < (int)MSHAPE_NAMES_COUNT)
 	rettv->vval.v_string = vim_strnsave(
@@ -2594,7 +2591,7 @@ get_user_name(char_u *buf, int len)
     return OK;
 }
 
-#if defined(EXITFREE) || defined(PROTO)
+#if defined(EXITFREE)
 /*
  * Free the memory allocated by get_user_name()
  */
@@ -2605,7 +2602,7 @@ free_username(void)
 }
 #endif
 
-#ifndef HAVE_QSORT
+#if !defined(HAVE_QSORT) && !defined(PROTO)
 /*
  * Our own qsort(), for systems that don't have it.
  * It's simple and slow.  From the K&R C book.
@@ -2672,7 +2669,7 @@ qsort(
  *  (history removed, not very interesting.  See the "screen" sources.)
  */
 
-#if !defined(HAVE_SETENV) && !defined(HAVE_PUTENV)
+#if !defined(HAVE_SETENV) && !defined(HAVE_PUTENV) && !defined(PROTO)
 
 #define EXTRASIZE 5		// increment to add to env. size
 
@@ -2812,7 +2809,7 @@ vimpty_getenv(const char_u *string)
 
 #endif // !defined(HAVE_SETENV) && !defined(HAVE_PUTENV)
 
-#if defined(FEAT_EVAL) || defined(FEAT_SPELL) || defined(PROTO)
+#if defined(FEAT_EVAL) || defined(FEAT_SPELL)
 /*
  * Return 0 for not writable, 1 for writable file, 2 for a dir which we have
  * rights to write into.
@@ -2847,7 +2844,7 @@ filewritable(char_u *fname)
 }
 #endif
 
-#if defined(FEAT_SPELL) || defined(FEAT_PERSISTENT_UNDO) || defined(PROTO)
+#if defined(FEAT_SPELL) || defined(FEAT_PERSISTENT_UNDO)
 /*
  * Read 2 bytes from "fd" and turn them into an int, MSB first.
  * Returns -1 when encountering EOF.
@@ -2989,8 +2986,7 @@ elapsed(DWORD start_tick)
 
 #if defined(FEAT_JOB_CHANNEL) \
 	|| (defined(UNIX) && (!defined(USE_SYSTEM) \
-	|| (defined(FEAT_GUI) && defined(FEAT_TERMINAL)))) \
-	|| defined(PROTO)
+	|| (defined(FEAT_GUI) && defined(FEAT_TERMINAL))))
 /*
  * Parse "cmd" and put the white-separated parts in "argv".
  * "argv" is an allocated array with "argc" entries and room for 4 more.
@@ -3097,7 +3093,7 @@ build_argv_from_string(char_u *cmd, char ***argv, int *argc)
     return OK;
 }
 
-# if defined(FEAT_JOB_CHANNEL) || defined(PROTO)
+# if defined(FEAT_JOB_CHANNEL)
 /*
  * Build "argv[argc]" from the list "l".
  * "argv[argc]" is set to NULL;
@@ -3198,3 +3194,127 @@ cmp_keyvalue_value_ni(const void *a, const void *b)
 		    kv2->value.length));
 }
 
+/*
+ * Iterative merge sort for doubly linked list.
+ * O(NlogN) worst case, and stable.
+ *  - The list is divided into blocks of increasing size (1, 2, 4, 8, ...).
+ *  - Each pair of blocks is merged in sorted order.
+ *  - Merged blocks are reconnected to build the sorted list.
+ */
+    void *
+mergesort_list(
+    void	*head,
+    void	*(*get_next)(void *),
+    void	(*set_next)(void *, void *),
+    void	*(*get_prev)(void *),
+    void	(*set_prev)(void *, void *),
+    int		(*compare)(const void *, const void *))
+{
+    if (!head || !get_next(head))
+	return head;
+
+    // Count length
+    int	    n = 0;
+    void*   curr = head;
+    while (curr)
+    {
+	n++;
+	curr = get_next(curr);
+    }
+
+    int	size;
+    for (size = 1; size < n; size *= 2)
+    {
+	void*	new_head = NULL;
+	void*	tail = NULL;
+	curr = head;
+
+	while (curr)
+	{
+	    // Split two runs
+	    void    *left = curr;
+	    void    *right = left;
+	    int	    i;
+	    for (i = 0; i < size && right; ++i)
+		right = get_next(right);
+
+	    void    *next = right;
+	    for (i = 0; i < size && next; ++i)
+		next = get_next(next);
+
+	    // Break links
+	    void    *l_end = right ? get_prev(right) : NULL;
+	    if (l_end)
+		set_next(l_end, NULL);
+	    if (right)
+		set_prev(right, NULL);
+
+	    void    *r_end = next ? get_prev(next) : NULL;
+	    if (r_end)
+		set_next(r_end, NULL);
+	    if (next)
+		set_prev(next, NULL);
+
+	    // Merge
+	    void    *merged = NULL;
+	    void    *merged_tail = NULL;
+
+	    while (left || right)
+	    {
+		void	*chosen = NULL;
+		if (!left)
+		{
+		    chosen = right;
+		    right = get_next(right);
+		}
+		else if (!right)
+		{
+		    chosen = left;
+		    left = get_next(left);
+		}
+		else if (compare(left, right) <= 0)
+		{
+		    chosen = left;
+		    left = get_next(left);
+		}
+		else
+		{
+		    chosen = right;
+		    right = get_next(right);
+		}
+
+		if (merged_tail)
+		{
+		    set_next(merged_tail, chosen);
+		    set_prev(chosen, merged_tail);
+		    merged_tail = chosen;
+		}
+		else
+		{
+		    merged = merged_tail = chosen;
+		    set_prev(chosen, NULL);
+		}
+	    }
+
+	    // Connect to full list
+	    if (!new_head)
+		new_head = merged;
+	    else
+	    {
+		set_next(tail, merged);
+		set_prev(merged, tail);
+	    }
+
+	    // Move tail to end
+	    while (get_next(merged_tail))
+		merged_tail = get_next(merged_tail);
+	    tail = merged_tail;
+
+	    curr = next;
+	}
+
+	head = new_head;
+    }
+
+    return head;
+}

@@ -37,7 +37,7 @@ else
 endif
 
 # Set to TEST_SKIP_PAT=<vim pattern> to exclude running tests matching the pattern
-EXCLUDE_PAT = TEST_SKIP_PAT='Test_crash1\|glvs'
+EXCLUDE_PAT = TEST_SKIP_PAT='Test_crash1\|glvs\|termdebug'
 
 CFGFLAGS = --prefix=/usr --mandir='$${prefix}'/share/man --without-local-dir
 CFGFLAGS += --with-modified-by="$(BUILDER)"
@@ -73,10 +73,17 @@ OPTFLAGS += --enable-libsodium
 NOXFLAGS = --without-x
 NOXFLAGS += --enable-gui=no
 NOXFLAGS += --disable-canberra
+NOXFLAGS += --enable-socketserver
+NOXFLAGS += --without-wayland
 
 GUIFLAGS = --with-x
 GUIFLAGS += --enable-xim
 GUIFLAGS += --enable-canberra
+ifneq ($(DEB_HOST_ARCH_OS),hurd)
+    GUIFLAGS += --with-wayland
+else
+    GUIFLAGS += --without-wayland
+endif
 
 GTK3FLAGS = --enable-gui=gtk3
 GTK3FLAGS += --enable-gtk3-check
@@ -84,6 +91,7 @@ GTK3FLAGS += --disable-gnome-check
 GTK3FLAGS += --disable-motif-check
 GTK3FLAGS += --disable-motif-check
 GTK3FLAGS += --disable-fontset
+GTK3FLAGS += --enable-socketserver
 
 MOTIFFLAGS = --enable-gui=motif
 MOTIFFLAGS += --disable-gtk2-check

@@ -162,19 +162,19 @@ typedef struct ff_visited_list_hdr
  */
 typedef struct ff_search_ctx_T
 {
-     ff_stack_T			*ffsc_stack_ptr;
-     ff_visited_list_hdr_T	*ffsc_visited_list;
-     ff_visited_list_hdr_T	*ffsc_dir_visited_list;
-     ff_visited_list_hdr_T	*ffsc_visited_lists_list;
-     ff_visited_list_hdr_T	*ffsc_dir_visited_lists_list;
-     string_T			ffsc_file_to_search;
-     string_T			ffsc_start_dir;
-     string_T			ffsc_fix_path;
-     string_T			ffsc_wc_path;
-     int			ffsc_level;
-     string_T			*ffsc_stopdirs_v;
-     int			ffsc_find_what;
-     int			ffsc_tagfile;
+    ff_stack_T			*ffsc_stack_ptr;
+    ff_visited_list_hdr_T	*ffsc_visited_list;
+    ff_visited_list_hdr_T	*ffsc_dir_visited_list;
+    ff_visited_list_hdr_T	*ffsc_visited_lists_list;
+    ff_visited_list_hdr_T	*ffsc_dir_visited_lists_list;
+    string_T			ffsc_file_to_search;
+    string_T			ffsc_start_dir;
+    string_T			ffsc_fix_path;
+    string_T			ffsc_wc_path;
+    int				ffsc_level;
+    string_T			*ffsc_stopdirs_v;
+    int				ffsc_find_what;
+    int				ffsc_tagfile;
 } ff_search_ctx_T;
 
 // locally needed functions
@@ -398,18 +398,6 @@ vim_findfile_init(
 	    search_ctx->ffsc_start_dir.length);
 	if (search_ctx->ffsc_start_dir.string == NULL)
 	    goto error_return;
-
-#ifdef BACKSLASH_IN_FILENAME
-	// A path that starts with "/dir" is relative to the drive, not to the
-	// directory (but not for "//machine/dir").  Only use the drive name.
-	if ((*path == '/' || *path == '\\')
-		&& path[1] != path[0]
-		&& search_ctx->ffsc_start_dir.string[1] == ':')
-	{
-	    search_ctx->ffsc_start_dir.string[2] = NUL;
-	    search_ctx->ffsc_start_dir.length = 2;
-	}
-#endif
     }
 
     /*
@@ -1750,7 +1738,7 @@ find_file_in_path(
 	    file_to_find, search_ctx);
 }
 
-# if defined(EXITFREE) || defined(PROTO)
+# if defined(EXITFREE)
     void
 free_findfile(void)
 {
@@ -1820,11 +1808,10 @@ find_file_in_path_option(
 	// copy file name into NameBuff, expanding environment variables
 	save_char = ptr[len];
 	ptr[len] = NUL;
-	expand_env_esc(ptr, NameBuff, MAXPATHL, FALSE, TRUE, NULL);
+	file_to_findlen = expand_env_esc(ptr, NameBuff, MAXPATHL, FALSE, TRUE, NULL);
 	ptr[len] = save_char;
 
 	vim_free(*file_to_find);
-	file_to_findlen = STRLEN(NameBuff);
 	*file_to_find = vim_strnsave(NameBuff, file_to_findlen);
 	if (*file_to_find == NULL)	// out of memory
 	{
@@ -2199,7 +2186,7 @@ eval_includeexpr(char_u *ptr, int len)
     current_sctx = curbuf->b_p_script_ctx[BV_INEX];
 
     res = eval_to_string_safe(curbuf->b_p_inex,
-	    was_set_insecurely((char_u *)"includeexpr", OPT_LOCAL),
+	    was_set_insecurely(curwin, (char_u *)"includeexpr", OPT_LOCAL),
 								   TRUE, TRUE);
 
     set_vim_var_string(VV_FNAME, NULL, 0);
@@ -2792,7 +2779,7 @@ simplify_filename(char_u *filename)
     }
     start = p;	    // remember start after "c:/" or "/" or "///"
     p_end = p + STRLEN(p);
-#ifdef UNIX
+# ifdef UNIX
     // Posix says that "//path" is unchanged but "///path" is "/path".
     if (start > filename + 2)
     {
@@ -2800,7 +2787,7 @@ simplify_filename(char_u *filename)
 	p_end -= (size_t)(p - (filename + 1));
 	start = p = filename + 1;
     }
-#endif
+# endif
 
     do
     {
@@ -2992,12 +2979,15 @@ simplify_filename(char_u *filename)
 	    p = getnextcomp(p);
 	}
     } while (*p != NUL);
-#endif // !AMIGA
 
     return (size_t)(p_end - filename);
+#else
+    // Don't touch Amiga filenames
+    return STRLEN(filename);
+#endif // !AMIGA
 }
 
-#if defined(FEAT_EVAL) || defined(PROTO)
+#if defined(FEAT_EVAL)
 /*
  * "simplify()" function
  */
