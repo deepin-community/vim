@@ -1,3 +1,9 @@
+vim (2:9.2.0218-1deepin1) unstable; urgency=medium
+
+  * Set NoDisplay=true for vim.desktop
+
+ -- lichenggang <lichenggang@uniontech.com>  Mon, 23 Mar 2026 10:45:09 +0800
+
 vim (2:9.2.0218-1) unstable; urgency=medium
 
   * New upstream tag
