@@ -2368,15 +2368,13 @@ AC_ARG_ENABLE(socketserver,
 	[  --enable-socketserver Use sockets for clientserver communication.],
 	[enable_socketserver=$enableval],
 	AS_IF([test "x$features" = xtiny],
-			[enable_socketserver=no_auto
+			[enable_socketserver=no_msg
 			 AC_MSG_RESULT([cannot use socketserver with tiny features])],
-			[enable_socketserver=auto]))
+			[enable_socketserver=yes]))
+
 if test "$enable_socketserver" = "yes"; then
   AC_DEFINE(WANT_SOCKETSERVER)
   AC_MSG_RESULT([yes])
-elif test "$enable_socketserver" = "auto"; then
-  AC_DEFINE(MAYBE_SOCKETSERVER)
-  AC_MSG_RESULT([auto])
 elif test "$enable_socketserver" = "no"; then
   AC_MSG_RESULT([no])
 fi
@@ -3422,17 +3420,8 @@ AC_COMPILE_IFELSE([AC_LANG_PROGRAM([#include <stdio.h>], [int x __attribute__((u
 
 AC_HEADER_DIRENT
 
-dnl If sys/wait.h is not found it might still exist but not be POSIX
-dnl compliant. In that case we define HAVE_UNION_WAIT (for NeXT)
-if test $ac_cv_header_sys_wait_h = no; then
-  AC_MSG_CHECKING([for sys/wait.h that defines union wait])
-  AC_COMPILE_IFELSE([AC_LANG_PROGRAM([#include <sys/wait.h>],
-			[union wait xx, yy; xx = yy])],
-		AC_MSG_RESULT(yes)
-			AC_DEFINE(HAVE_SYS_WAIT_H)
-			AC_DEFINE(HAVE_UNION_WAIT),
-		AC_MSG_RESULT(no))
-fi
+AC_CHECK_HEADERS([sys/wait.h])
+AC_CHECK_FUNCS([waitpid])
 
 AC_CHECK_HEADERS(stdint.h stdlib.h string.h \
 	sys/select.h sys/utsname.h termcap.h fcntl.h \

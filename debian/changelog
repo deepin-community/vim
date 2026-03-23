@@ -1,8 +1,69 @@
-vim (2:9.1.1882-1deepin1) unstable; urgency=medium
+vim (2:9.2.0218-1) unstable; urgency=medium
 
-  * Set NoDisplay=true for vim.desktop
+  * New upstream tag
+    + 9.2.0168: Fix invalid pointer casting in string_convert(), causing test
+      failures on big-endian systems
+    + Security fixes
+      - 9.2.0137: crash when composing character as end of range in a regexp
+        collection (Closes: #1130658, CVE-2026-32249)
+      - 9.2.0202: command injection via newline in glob(), CVE-2026-33412
 
- -- Tianyu Chen <sweetyfish@deepin.org>  Thu, 15 Jan 2026 10:29:01 +0800
+ -- James McCoy <jamessan@debian.org>  Sat, 21 Mar 2026 07:38:26 -0400
+
+vim (2:9.2.0136-1) unstable; urgency=medium
+
+  * Merge upstream patch v9.2.0136
+    + 9.2.0132: Skip Test_recover_corrupted_swap_file1 on big-endian systems
+
+ -- James McCoy <jamessan@debian.org>  Wed, 11 Mar 2026 11:11:47 -0400
+
+vim (2:9.2.0119-1) unstable; urgency=medium
+
+  * New upstream release
+    + See ":help vim-9.2" for new features
+    + Security fixes
+      - 9.1.2148: buffer overflow in netbeans special_keys() handling (Closes:
+        #1127930, CVE-2026-26269)
+  * Merge upstream tag v9.2.0119
+    + Security fixes
+      - 9.2.0073: possible command injection using netrw (Closes: #1129427,
+        CVE-2026-28417)
+      - 9.2.0074: crash with overlong emacs tag file (Closes: #1129428,
+        CVE-2026-28418)
+      - 9.2.0075: buffer underflow with emacs tag file (Closes: #1129429,
+        CVE-2026-28419)
+      - 9.2.0076: buffer-overflow with combining characters in terminal
+        handling (Closes: #1129430, CVE-2026-28420)
+      - 9.2.0077: crash when recovering a corrupted swap file (Closes:
+        #1129431, CVE-2026-28421)
+      - 9.2.0078: stack buffer overflow when rendering a statusline with a
+        multi-byte fill character on a very wide terminal (Closes: #1129432,
+        CVE-2026-28422)
+
+ -- James McCoy <jamessan@debian.org>  Mon, 09 Mar 2026 06:50:59 -0400
+
+vim (2:9.1.2141-1) unstable; urgency=medium
+
+  * Merge upstream tag v9.1.2141
+    + Security fixes
+      - 9.1.2132: Fix buffer-overflow in 'helpfile' option handling,
+        CVE-2026-25749
+
+ -- James McCoy <jamessan@debian.org>  Mon, 09 Feb 2026 07:06:42 -0500
+
+vim (2:9.1.2103-1) unstable; urgency=medium
+
+  * Merge upstream patch v9.1.2103
+    + syntax/debcontrol.vim:
+      - Only highlight email addresses in Maintainer / Uploaders fields
+      - Add support for highlighting build profiles and architecture
+        restrictions (Closes: #1124089)
+  * Disable flaky Test_client_server_stopinsert test
+  * Remove Rules-Requires-Root, since no is the default value
+  * Remove Priority field, since optional is the default value
+  * Declare compliance with Policy 4.7.3
+
+ -- James McCoy <jamessan@debian.org>  Fri, 23 Jan 2026 06:27:15 -0500
 
 vim (2:9.1.1882-1) unstable; urgency=medium
 

@@ -10,6 +10,7 @@ Dependents:
  /usr/share/man/ja/man1/editor.1.gz editor.ja.1.gz /usr/share/man/ja/man1/vim.1.gz
  /usr/share/man/pl/man1/editor.1.gz editor.pl.1.gz /usr/share/man/pl/man1/vim.1.gz
  /usr/share/man/ru/man1/editor.1.gz editor.ru.1.gz /usr/share/man/ru/man1/vim.1.gz
+ /usr/share/man/sv/man1/editor.1.gz editor.sv.1.gz /usr/share/man/sv/man1/vim.1.gz
  /usr/share/man/tr/man1/editor.1.gz editor.tr.1.gz /usr/share/man/tr/man1/vim.1.gz
 Priority: 50
 
@@ -35,6 +36,7 @@ Dependents:
  /usr/share/man/ja/man1/ex.1.gz ex.ja.1.gz /usr/share/man/ja/man1/vim.1.gz
  /usr/share/man/pl/man1/ex.1.gz ex.pl.1.gz /usr/share/man/pl/man1/vim.1.gz
  /usr/share/man/ru/man1/ex.1.gz ex.ru.1.gz /usr/share/man/ru/man1/vim.1.gz
+ /usr/share/man/sv/man1/ex.1.gz ex.sv.1.gz /usr/share/man/sv/man1/vim.1.gz
  /usr/share/man/tr/man1/ex.1.gz ex.tr.1.gz /usr/share/man/tr/man1/vim.1.gz
 Priority: 50
 
@@ -85,6 +87,7 @@ Dependents:
  /usr/share/man/ja/man1/vi.1.gz vi.ja.1.gz /usr/share/man/ja/man1/vim.1.gz
  /usr/share/man/pl/man1/vi.1.gz vi.pl.1.gz /usr/share/man/pl/man1/vim.1.gz
  /usr/share/man/ru/man1/vi.1.gz vi.ru.1.gz /usr/share/man/ru/man1/vim.1.gz
+ /usr/share/man/sv/man1/vi.1.gz vi.sv.1.gz /usr/share/man/sv/man1/vim.1.gz
  /usr/share/man/tr/man1/vi.1.gz vi.tr.1.gz /usr/share/man/tr/man1/vim.1.gz
 Priority: 50
 
@@ -100,6 +103,7 @@ Dependents:
  /usr/share/man/ja/man1/view.1.gz view.ja.1.gz /usr/share/man/ja/man1/vim.1.gz
  /usr/share/man/pl/man1/view.1.gz view.pl.1.gz /usr/share/man/pl/man1/vim.1.gz
  /usr/share/man/ru/man1/view.1.gz view.ru.1.gz /usr/share/man/ru/man1/vim.1.gz
+ /usr/share/man/sv/man1/view.1.gz view.sv.1.gz /usr/share/man/sv/man1/vim.1.gz
  /usr/share/man/tr/man1/view.1.gz view.tr.1.gz /usr/share/man/tr/man1/vim.1.gz
 Priority: 50
 

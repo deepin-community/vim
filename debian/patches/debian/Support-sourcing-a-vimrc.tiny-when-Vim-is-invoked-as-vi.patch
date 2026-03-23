@@ -17,42 +17,42 @@ Signed-off-by: James Vega <jamessan@debian.org>
  3 files changed, 28 insertions(+), 1 deletion(-)
 
 diff --git a/src/main.c b/src/main.c
-index d3730fe..a913f1d 100644
+index 9f9fd12..9ae001d 100644
 --- a/src/main.c
 +++ b/src/main.c
-@@ -2050,6 +2050,10 @@ parse_command_name(mparm_T *parmp)
+@@ -2056,6 +2056,10 @@ parse_command_name(mparm_T *parmp)
      }
      else if (STRNICMP(initstr, "vim", 3) == 0)
  	initstr += 3;
-+#ifdef SYS_TINYRC_FILE
++# ifdef SYS_TINYRC_FILE
 +    else if (STRNICMP(initstr, "vi", 2) == 0)
 +	parmp->vi_mode = TRUE;
-+#endif
++# endif
  
      // Catch "[r][g]vimdiff" and "[r][g]viewdiff".
      if (STRICMP(initstr, "diff") == 0)
-@@ -3369,7 +3373,12 @@ source_startup_scripts(mparm_T *parmp)
+@@ -3378,7 +3382,12 @@ source_startup_scripts(mparm_T *parmp)
  	 * Get system wide defaults, if the file name is defined.
  	 */
- #ifdef SYS_VIMRC_FILE
+ # ifdef SYS_VIMRC_FILE
 -	(void)do_source((char_u *)SYS_VIMRC_FILE, FALSE, DOSO_NONE, NULL);
-+# if defined(SYS_TINYRC_FILE) && defined(TINY_VIMRC)
++#  if defined(SYS_TINYRC_FILE) && defined(TINY_VIMRC)
 +	if (parmp->vi_mode)
 +	    (void)do_source((char_u *)SYS_TINYRC_FILE, FALSE, DOSO_NONE, NULL);
 +	else
-+# endif
++#  endif
 +	    (void)do_source((char_u *)SYS_VIMRC_FILE, FALSE, DOSO_NONE, NULL);
- #endif
- #ifdef MACOS_X
+ # endif
+ # ifdef MACOS_X
  	(void)do_source((char_u *)"$VIMRUNTIME/macmap.vim", FALSE,
-@@ -3412,13 +3421,25 @@ source_startup_scripts(mparm_T *parmp)
- #ifdef USR_EXRC_FILE2
+@@ -3421,13 +3430,25 @@ source_startup_scripts(mparm_T *parmp)
+ # ifdef USR_EXRC_FILE2
  		&& do_source((char_u *)USR_EXRC_FILE2, FALSE,
  						       DOSO_NONE, NULL) == FAIL
-+#endif
-+#if defined(SYS_TINYRC_FILE) && defined(TINY_VIMRC)
++# endif
++# if defined(SYS_TINYRC_FILE) && defined(TINY_VIMRC)
 +		&& !parmp->vi_mode
- #endif
+ # endif
  		&& !has_dash_c_arg)
  	    {
  		// When no .vimrc file was found: source defaults.vim.
@@ -64,18 +64,18 @@ index d3730fe..a913f1d 100644
 +		     * don't want to error due to missing defaults.vim.  That's provided by
 +		     * vim-runtime, which isn't typically installed with vim-tiny.
 +		     */
-+#ifndef TINY_VIMRC
++# ifndef TINY_VIMRC
  		    emsg(_(e_failed_to_source_defaults));
-+#endif
++# endif
 +		}
  	    }
  	}
  
 diff --git a/src/os_unix.h b/src/os_unix.h
-index 145a404..ff205f9 100644
+index a507392..d1f7ea1 100644
 --- a/src/os_unix.h
 +++ b/src/os_unix.h
-@@ -203,6 +203,9 @@ typedef struct dsc$descriptor   DESC;
+@@ -187,6 +187,9 @@ typedef struct dsc$descriptor   DESC;
  /*
   * Unix system-dependent file names
   */
@@ -86,10 +86,10 @@ index 145a404..ff205f9 100644
  # define SYS_VIMRC_FILE "$VIM/vimrc"
  #endif
 diff --git a/src/structs.h b/src/structs.h
-index c64ca82..20c67e8 100644
+index 2b8cb3d..69bcbaf 100644
 --- a/src/structs.h
 +++ b/src/structs.h
-@@ -4747,6 +4747,9 @@ typedef struct
+@@ -4811,6 +4811,9 @@ typedef struct
  #ifdef FEAT_DIFF
      int		diff_mode;		// start with 'diff' set
  #endif
