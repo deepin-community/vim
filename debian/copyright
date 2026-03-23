@@ -68,6 +68,7 @@ Files:
  runtime/indent/astro.vim
  runtime/indent/glsl.vim
  runtime/indent/graphql.vim
+ runtime/indent/handlebars.vim
  runtime/indent/julia.vim
  runtime/indent/just.vim
  runtime/indent/nu.vim
@@ -77,6 +78,7 @@ Files:
  runtime/syntax/bitbake.vim
  runtime/syntax/glsl.vim
  runtime/syntax/graphql.vim
+ runtime/syntax/handlebars.vim
  runtime/syntax/jq.vim
  runtime/syntax/json.vim
  runtime/syntax/jsonc.vim
@@ -117,6 +119,8 @@ Copyright:
  2015-2017 Samsung Electronics Co., Ltd
  2015-2017 Red Hat Inc.
  2014 John Hawthorn
+ 2026 Devin Weaver
+ 2015 Jouke van der Maas
 License: Expat
 
 Files: runtime/syntax/tmux.vim

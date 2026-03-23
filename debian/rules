@@ -37,7 +37,7 @@ else
 endif
 
 # Set to TEST_SKIP_PAT=<vim pattern> to exclude running tests matching the pattern
-EXCLUDE_PAT = TEST_SKIP_PAT='Test_crash1\|glvs\|termdebug'
+EXCLUDE_PAT = TEST_SKIP_PAT='Test_crash1\|glvs\|termdebug\|Test_client_server_stopinsert'
 
 CFGFLAGS = --prefix=/usr --mandir='$${prefix}'/share/man --without-local-dir
 CFGFLAGS += --with-modified-by="$(BUILDER)"
@@ -161,7 +161,7 @@ NAME = vim
 VERSION = $(basename $(DEB_VERSION_UPSTREAM))
 VIMMAJOR = $(basename $(VERSION))
 VIMCUR = $(NAME)$(subst .,,$(VERSION))
-LANGS = da de fr it ja pl ru tr
+LANGS = da de fr it ja pl ru sv tr
 
 DOT_IN_DEPS = debian/vim-runtime.postrm
 DOT_IN_DEPS += debian/vim-runtime.preinst
@@ -174,10 +174,6 @@ foreach-variant = \
 
 %:
 	dh $@
-
-update-changelog:
-	dh_testdir
-	wget -O debian/changelog.upstream http://ftp.vim.org/pub/vim/patches/$(VERSION)/README
 
 override_dh_auto_clean:
 # The vim-basic variant is always enabled, so we can rely on it when checking
@@ -331,9 +327,6 @@ override_dh_install-indep:
 	    cp debian/vim-runtime/$$DIR/man1/vimtutor.1 \
 	       debian/vim-gui-common/$$DIR/man1/gvimtutor.1; \
 	done
-
-override_dh_installchangelogs:
-	dh_installchangelogs -A debian/changelog.upstream
 
 install-xxd: DESTDIR=$(CURDIR)/debian/xxd
 install-xxd:

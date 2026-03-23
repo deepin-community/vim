@@ -1,11 +1,9 @@
 Source: vim
 Section: editors
-Priority: optional
 Maintainer: Debian Vim Maintainers <team+vim@tracker.debian.org>
 Uploaders:
  James McCoy <jamessan@debian.org>,
-Standards-Version: 4.7.0
-Rules-Requires-Root: no
+Standards-Version: 4.7.3
 Build-Depends:
  autoconf,
  cscope <!nocheck>,
