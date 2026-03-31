@@ -11,10 +11,10 @@ Forwarded: not-needed
  2 files changed, 2 insertions(+)
 
 diff --git a/runtime/vim.desktop b/runtime/vim.desktop
-index a8672cb..715d071 100644
+index 45f6c20..341474f 100644
 --- a/runtime/vim.desktop
 +++ b/runtime/vim.desktop
-@@ -111,6 +111,7 @@ Comment[zh_TW]=編輯文字檔
+@@ -112,6 +112,7 @@ Comment[zh_TW]=編輯文字檔
  TryExec=vim
  Exec=vim %F
  Terminal=true
@@ -23,10 +23,10 @@ index a8672cb..715d071 100644
  # Translators: Search terms to find this application. Do NOT change the semicolons! The list MUST also end with a semicolon!
  Keywords[ca]=Text;editor;
 diff --git a/src/po/vim.desktop.in b/src/po/vim.desktop.in
-index 874fa6a..958f66e 100644
+index c603143..5394e53 100644
 --- a/src/po/vim.desktop.in
 +++ b/src/po/vim.desktop.in
-@@ -69,6 +69,7 @@ Comment[zh_TW]=編輯文字檔
+@@ -67,6 +67,7 @@ Comment[zh_TW]=編輯文字檔
  TryExec=vim
  Exec=vim %F
  Terminal=true
