@@ -1,3 +1,10 @@
+vim (2:9.2.0218-1deepin3) unstable; urgency=medium
+
+  * patch 9.2.0276: [security]: modeline security bypass
+    Fixes: CVE-2026-34982 (GHSA-8h6p-m6gr-mpw9)
+
+ -- deepin-ci-robot <packages@deepin.org>  Wed, 01 Apr 2026 10:39:23 +0800
+
 vim (2:9.2.0218-1deepin2) unstable; urgency=medium
 
   * patch 9.2.0272: [security]: 'tabpanel' can be set in a modeline
