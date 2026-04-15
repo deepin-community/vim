@@ -1,0 +1,78 @@
+commit 7088926316d8d4a7572a242d0765e99adfc8b083
+Author: Christian Brabandt <cb@256bit.org>
+Date:   Wed Apr 1 16:23:49 2026 +0000
+
+    patch 9.2.0280: [security]: path traversal issue in zip.vim
+    
+    Problem:  [security]: path traversal issue in zip.vim
+              (Michał Majchrowicz)
+    Solution: Detect more such attacks and warn the user.
+    
+    Github Advisory:
+    https://github.com/vim/vim/security/advisories/GHSA-jc86-w7vm-8p24
+    
+    Signed-off-by: Christian Brabandt <cb@256bit.org>
+
+diff --git a/runtime/autoload/zip.vim b/runtime/autoload/zip.vim
+index e81308fa..1ce9cfc2 100644
+--- a/runtime/autoload/zip.vim
++++ b/runtime/autoload/zip.vim
+@@ -20,6 +20,7 @@
+ " 2025 Dec 20 by Vim Project: use :lcd instead of :cd
+ " 2026 Feb 08 by Vim Project: use system() instead of :!
+ " 2026 Mar 08 by Vim Project: Make ZipUpdatePS() check for powershell
++" 2026 Apr 01 by Vim Project: Detect more path traversal attacks
+ " License:	Vim License  (see vim's :help license)
+ " Copyright:	Copyright (C) 2005-2019 Charles E. Campbell {{{1
+ "		Permission is hereby granted to use and distribute this code,
+@@ -367,6 +368,11 @@ fun! zip#Write(fname)
+     return
+   endif
+ 
++  if simplify(a:fname) =~ '\.\.[/\\]'
++    call s:Mess('Error', "***error*** (zip#Write) Path Traversal Attack detected, not writing!")
++    return
++  endif
++
+   let curdir= getcwd()
+   let tmpdir= tempname()
+   if tmpdir =~ '\.'
+@@ -481,7 +487,7 @@ fun! zip#Extract()
+   if fname =~ '/$'
+     call s:Mess('Error', "***error*** (zip#Extract) Please specify a file, not a directory")
+     return
+-  elseif fname =~ '^[.]\?[.]/'
++  elseif fname =~ '^[.]\?[.]/' || simplify(fname) =~ '\.\.[/\\]'
+     call s:Mess('Error', "***error*** (zip#Browse) Path Traversal Attack detected, not extracting!")
+     return
+   endif
+diff --git a/src/testdir/test_plugin_zip.vim b/src/testdir/test_plugin_zip.vim
+index 08f8223b..53b61208 100644
+--- a/src/testdir/test_plugin_zip.vim
++++ b/src/testdir/test_plugin_zip.vim
+@@ -274,3 +274,25 @@ def g:Test_zip_fname_evil_path()
+   assert_match('zipfile://.*::etc/ax-pwn', @%)
+   bw
+ enddef
++
++def g:Test_zip_fname_evil_path2()
++  CheckNotMSWindows
++  # needed for writing the zip file
++  CheckExecutable zip
++
++  CopyZipFile("evil.zip")
++  defer delete("X.zip")
++  e X.zip
++
++  :1
++  var fname = 'foobar'
++  search('\V' .. fname)
++  exe "normal \<cr>"
++  normal x
++  assert_false(filereadable('/tmp/foobar'))
++  :w
++  var mess  = execute(':mess')
++  assert_match('Path Traversal Attack', mess)
++  assert_match('zipfile://.*::.*tmp/foobar', @%)
++  bw!
++enddef
