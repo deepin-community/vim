@@ -5759,6 +5759,28 @@ def Test_multikey_dict_in_block()
   unlet g:TestDict
 enddef
 
+" Test for overriding a block level variable with a new script level variable
+" and referring to it in a function.
+def Test_block_var_override_with_script_var()
+  var lines =<< trim END
+    vim9script
+
+    if true
+      var lines = ['a']
+      lines->filter((_, _) => true)
+    endif
+
+    var lines = []
+
+    def Fx()
+      lines->add('b')
+    enddef
+    Fx()
+    assert_equal(['b'], lines)
+  END
+  v9.CheckSourceSuccess(lines)
+enddef
+
 " Test for using the type() function with void
 def Test_type_func_with_void()
   var lines =<< trim END
@@ -5789,6 +5811,40 @@ def Test_substitute_cmd()
   END
   writefile(lines, 'Xvim9lines', 'D')
   source Xvim9lines
+enddef
+
+def Test_call_stack_string()
+  CheckScreendump
+  var lines =<< trim END
+    vim9script
+
+    def CheckStack(stack: string, expected: string)
+      const caller = stack->split('\.\.')[-1]->substitute('\[\d\+\]', '', '')
+      if caller !~ expected
+        throw 'fail'
+      endif
+    enddef
+
+    class C
+      static def ClassMethodX()
+        CheckStack(expand('<stack>'), '_C.ClassMethodX$')
+      enddef
+    endclass
+
+    def NormalFuncX()
+      CheckStack(expand('<stack>'), '_NormalFuncX$')
+    enddef
+
+    # creating function names of various lengths till the name in call stack is corrupt
+    for i in range(1, 20)
+      const name = 'Wrapper' .. repeat('A', i) .. 'func'
+      execute "def g:" .. name .. "(id: any)\n  NormalFuncX()\n  C.ClassMethodX()\nenddef"
+      execute "timer_start(0, g:" .. name .. ")"
+    endfor
+  END
+  writefile(lines, 'XTest_call_stack_string', 'D')
+  var buf = g:RunVimInTerminal('-S XTest_call_stack_string', {'rows': 20})
+  g:StopVimInTerminal(buf)
 enddef
 
 " vim: ts=8 sw=2 sts=2 expandtab tw=80 fdm=marker

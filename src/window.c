@@ -2717,10 +2717,10 @@ win_close_buffer(win_T *win, int action, int abort_if_last)
 	bufref_T    bufref;
 
 	set_bufref(&bufref, curbuf);
-	win->w_locked = TRUE;
-	close_buffer(win, win->w_buffer, action, abort_if_last, TRUE);
+	++win->w_locked;
+	close_buffer(win, win->w_buffer, action, abort_if_last, TRUE, TRUE);
 	if (win_valid_any_tab(win))
-	    win->w_locked = FALSE;
+	    --win->w_locked;
 	// Make sure curbuf is valid. It can become invalid if 'bufhidden' is
 	// "wipe".
 	if (!bufref_valid(&bufref))
@@ -2823,19 +2823,19 @@ win_close(win_T *win, int free_buf)
 	    other_buffer = TRUE;
 	    if (!win_valid(win))
 		return FAIL;
-	    win->w_locked = TRUE;
+	    ++win->w_locked;
 	    apply_autocmds(EVENT_BUFLEAVE, NULL, NULL, FALSE, curbuf);
 	    if (!win_valid(win))
 		return FAIL;
-	    win->w_locked = FALSE;
+	    --win->w_locked;
 	    if (last_window())
 		return FAIL;
 	}
-	win->w_locked = TRUE;
+	++win->w_locked;
 	apply_autocmds(EVENT_WINLEAVE, NULL, NULL, FALSE, curbuf);
 	if (!win_valid(win))
 	    return FAIL;
-	win->w_locked = FALSE;
+	--win->w_locked;
 	if (last_window())
 	    return FAIL;
 #ifdef FEAT_EVAL
@@ -2901,6 +2901,9 @@ win_close(win_T *win, int free_buf)
 #ifdef MESSAGE_QUEUE
     ++dont_parse_messages;
 #endif
+
+    if (win->w_buffer != NULL)
+	--win->w_buffer->b_nwindows;
 
     // Free the memory used for the window and get the window that received
     // the screen space.
@@ -3476,7 +3479,7 @@ win_close_othertab(win_T *win, int free_buf, tabpage_T *tp)
     if (win->w_buffer != NULL)
 	// Close the link to the buffer.
 	close_buffer(win, win->w_buffer, free_buf ? DOBUF_UNLOAD : 0,
-								 FALSE, TRUE);
+							    FALSE, TRUE, TRUE);
 
     // Careful: Autocommands may have closed the tab page or made it the
     // current tab page.
@@ -3528,6 +3531,9 @@ win_close_othertab(win_T *win, int free_buf, tabpage_T *tp)
 	if (h != tabline_height())
 	    shell_new_rows();
     }
+
+    if (win->w_buffer != NULL)
+	--win->w_buffer->b_nwindows;
 
     // Free the memory used for the window.
     win_free_mem(win, &dir, tp);
@@ -5819,6 +5825,14 @@ win_enter_ext(win_T *wp, int flags)
 	redraw_mode = TRUE;
 #endif
     redraw_tabline = TRUE;
+    redraw_vseps = TRUE;
+    // Need to redraw all status lines so that the vsep character at
+    // status line rows is updated for the new current window.
+    {
+	win_T *ww;
+	FOR_ALL_WINDOWS(ww)
+	    ww->w_redr_status = TRUE;
+    }
 #if defined(FEAT_TABPANEL)
     redraw_tabpanel = TRUE;
 #endif
@@ -6039,6 +6053,14 @@ win_free(
     remove_highlight_overrides(wp->w_hl);
     vim_free(wp->w_hl);
 
+    // Free statusline click regions.
+    if (wp->w_stl_click != NULL)
+    {
+	for (i = 0; i < wp->w_stl_click_count; i++)
+	    vim_free(wp->w_stl_click[i].funcname);
+	vim_free(wp->w_stl_click);
+    }
+
     clear_winopt(&wp->w_onebuf_opt);
     clear_winopt(&wp->w_allbuf_opt);
 
@@ -6167,7 +6189,10 @@ win_free_popup(win_T *win)
 	if (bt_popup(win->w_buffer))
 	    win_close_buffer(win, DOBUF_WIPE_REUSE, FALSE);
 	else
-	    close_buffer(win, win->w_buffer, 0, FALSE, FALSE);
+	    close_buffer(win, win->w_buffer, 0, FALSE, FALSE, TRUE);
+
+	if (win->w_buffer != NULL)
+	    --win->w_buffer->b_nwindows;
     }
 # if defined(FEAT_TIMERS)
     // the timer may have been cleared, making the pointer invalid
@@ -7861,6 +7886,8 @@ frame_change_statusline_height(void)
 {
     tabpage_T	*tp;
     int		global_stlh;
+
+    redraw_vseps = TRUE;
 
     // First pass: find space-constrained global height.
     global_stlh = stlo_mh;

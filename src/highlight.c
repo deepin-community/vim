@@ -184,7 +184,8 @@ typedef struct
 typedef struct hl_overrides_S hl_overrides_T;
 struct hl_overrides_S
 {
-    hl_override_T   *arr;   // May be NULL if "arr" was freed
+    hl_override_T   *arr;   // May be NULL if "arr" was freed or no highlight
+			    // overrides (all values set to default)
     int		    len;
     hl_overrides_T  *next;  // Used to handle recursive calls
 
@@ -207,6 +208,21 @@ static int hl_flags[HLF_COUNT] = HL_FLAGS;
 static garray_T highlight_ga;
 #define HL_TABLE()	((hl_group_T *)((highlight_ga.ga_data)))
 
+// Wrapper struct for hashtable entries: stores the highlight group ID alongside
+// the uppercase name used as a hash key.  Uses the same offsetof pattern as
+// signgroup_T / HI2SG.
+typedef struct {
+    int		hn_id;		// highlight group ID (1-based)
+    char_u	hn_key[1];	// uppercase name (stretchable array)
+} hlname_T;
+
+#define HLNAME_KEY_OFF	offsetof(hlname_T, hn_key)
+#define HI2HLNAME(hi)	((hlname_T *)((hi)->hi_key - HLNAME_KEY_OFF))
+
+// hashtable for quick highlight group name lookup
+static hashtab_T highlight_ht;
+static bool	 highlight_ht_inited = false;
+
 /*
  * An attribute number is the index in attr_table plus ATTR_OFF.
  */
@@ -217,6 +233,7 @@ static void set_hl_attr(int idx);
 static void highlight_list_one(int id);
 static int highlight_list_arg(int id, int didh, int type, int iarg, char_u *sarg, char *name);
 static int syn_add_group(char_u *name);
+static int syn_name2id_len(char_u *name, int len);
 static int hl_has_settings(int idx, int check_link);
 static void highlight_clear(int idx);
 
@@ -256,6 +273,7 @@ static char *(highlight_init_both[]) = {
     "default link EndOfBuffer NonText",
     CENT("VertSplit term=reverse cterm=reverse",
 	 "VertSplit term=reverse cterm=reverse gui=reverse"),
+    "default link VertSplitNC VertSplit",
 #ifdef FEAT_CLIPBOARD
     CENT("VisualNOS term=underline,bold cterm=underline,bold",
 	 "VisualNOS term=underline,bold cterm=underline,bold gui=underline,bold"),
@@ -2034,9 +2052,11 @@ free_highlight(void)
     {
 	highlight_clear(i);
 	vim_free(HL_TABLE()[i].sg_name);
-	vim_free(HL_TABLE()[i].sg_name_u);
+	vim_free(HL_TABLE()[i].sg_name_u - HLNAME_KEY_OFF);
     }
     ga_clear(&highlight_ga);
+    hash_clear(&highlight_ht);
+    highlight_ht_inited = false;
 }
 #endif
 
@@ -3107,6 +3127,32 @@ hl_combine_attr(int char_attr, int prim_attr)
 }
 
 #if defined(FEAT_GUI) || defined(FEAT_TERMGUICOLORS)
+
+# ifdef FEAT_TERMGUICOLORS
+/*
+ * Convert a cterm color number (1-16) to an RGB value.
+ * Used as a fallback when 'termguicolors' is set but only cterm colors are
+ * specified (no guifg/guibg).
+ * Returns INVALCOLOR if the color number is out of range.
+ */
+    static guicolor_T
+cterm_color_to_rgb(int color_nr)
+{
+    // ANSI color order: Black, Red, Green, Yellow, Blue, Magenta,
+    // Cyan, White, then bright variants.
+    static const guicolor_T cterm_color_16[16] = {
+	0x000000, 0xc00000, 0x008000, 0x808000,
+	0x0000c0, 0xc000c0, 0x004080, 0xc0c0c0,
+	0x808080, 0xff8080, 0x00ff00, 0xffff00,
+	0x6060ff, 0xff40ff, 0x00ffff, 0xffffff
+    };
+
+    if (color_nr < 1 || color_nr > 16)
+	return INVALCOLOR;
+    return cterm_color_16[color_nr - 1];
+}
+# endif
+
 /*
  * Blend two RGB colors based on blend value (0-100).
  * blend: 0=use popup color, 100=use background color
@@ -3255,32 +3301,47 @@ hl_blend_attr(int char_attr, int popup_attr, int blend, int blend_fg UNUSED)
 		if (popup_aep->ae_u.cterm.bg_color > 0)
 		    new_en.ae_u.cterm.bg_color = popup_aep->ae_u.cterm.bg_color;
 #ifdef FEAT_TERMGUICOLORS
-		// Blend RGB colors for termguicolors mode
-		if (blend_fg)
+		// Blend RGB colors for termguicolors mode.
+		// Fall back to cterm color converted to RGB when
+		// gui color is not set.
 		{
-		    // blend_fg=TRUE: fade underlying text toward popup bg.
-		    if (popup_aep->ae_u.cterm.bg_rgb != INVALCOLOR)
+		    guicolor_T popup_bg = popup_aep->ae_u.cterm.bg_rgb;
+		    guicolor_T popup_fg = popup_aep->ae_u.cterm.fg_rgb;
+
+		    if (COLOR_INVALID(popup_bg)
+				    && popup_aep->ae_u.cterm.bg_color > 0)
+			popup_bg = cterm_color_to_rgb(
+					popup_aep->ae_u.cterm.bg_color);
+		    if (COLOR_INVALID(popup_fg)
+				    && popup_aep->ae_u.cterm.fg_color > 0)
+			popup_fg = cterm_color_to_rgb(
+					popup_aep->ae_u.cterm.fg_color);
+
+		    if (blend_fg)
 		    {
-			int base_fg = 0xFFFFFF;
-			if (char_aep != NULL
-				&& char_aep->ae_u.cterm.fg_rgb != INVALCOLOR)
-			    base_fg = char_aep->ae_u.cterm.fg_rgb;
-			new_en.ae_u.cterm.fg_rgb = blend_colors(
-				base_fg, popup_aep->ae_u.cterm.bg_rgb, blend);
+			// blend_fg=TRUE: fade underlying text toward popup bg.
+			if (popup_bg != INVALCOLOR)
+			{
+			    int base_fg = 0xFFFFFF;
+			    if (char_aep != NULL
+				    && char_aep->ae_u.cterm.fg_rgb != INVALCOLOR)
+				base_fg = char_aep->ae_u.cterm.fg_rgb;
+			    new_en.ae_u.cterm.fg_rgb = blend_colors(
+				    base_fg, popup_bg, blend);
+			}
 		    }
-		}
-		else if (popup_aep->ae_u.cterm.fg_rgb != INVALCOLOR)
-		    // blend_fg=FALSE: use popup foreground
-		    new_en.ae_u.cterm.fg_rgb = popup_aep->ae_u.cterm.fg_rgb;
-		if (popup_aep->ae_u.cterm.bg_rgb != INVALCOLOR)
-		{
-		    // Blend popup bg toward underlying bg
-		    guicolor_T underlying_bg = INVALCOLOR;
-		    if (char_aep != NULL)
-			underlying_bg = char_aep->ae_u.cterm.bg_rgb;
-		    new_en.ae_u.cterm.bg_rgb = blend_colors(
-			    popup_aep->ae_u.cterm.bg_rgb,
-			    underlying_bg, blend);
+		    else if (popup_fg != INVALCOLOR)
+			// blend_fg=FALSE: use popup foreground
+			new_en.ae_u.cterm.fg_rgb = popup_fg;
+		    if (popup_bg != INVALCOLOR)
+		    {
+			// Blend popup bg toward underlying bg
+			guicolor_T underlying_bg = INVALCOLOR;
+			if (char_aep != NULL)
+			    underlying_bg = char_aep->ae_u.cterm.bg_rgb;
+			new_en.ae_u.cterm.bg_rgb = blend_colors(
+				popup_bg, underlying_bg, blend);
+		    }
 		}
 #endif
 	    }
@@ -3300,6 +3361,138 @@ hl_blend_attr(int char_attr, int popup_attr, int blend, int blend_fg UNUSED)
     }
 
     // For term mode, no separate background color handling.
+    return get_attr_entry(&term_attr_table, &new_en);
+}
+
+/*
+ * Blend for pum opacity space cells: keep underlying fg, blend bg.
+ * This is different from hl_blend_attr(blend_fg=TRUE) where fg blends
+ * in the wrong direction for pum use.
+ */
+    int
+hl_pum_blend_attr(int char_attr, int popup_attr, int blend UNUSED)
+{
+    attrentry_T *char_aep = NULL;
+    attrentry_T *popup_aep;
+    attrentry_T new_en;
+
+#ifdef FEAT_GUI
+    if (gui.in_use)
+    {
+	if (char_attr > HL_ALL)
+	    char_aep = syn_gui_attr2entry(char_attr);
+	if (char_aep != NULL)
+	    new_en = *char_aep;
+	else
+	{
+	    CLEAR_FIELD(new_en);
+	    new_en.ae_u.gui.fg_color = INVALCOLOR;
+	    new_en.ae_u.gui.bg_color = INVALCOLOR;
+	    new_en.ae_u.gui.sp_color = INVALCOLOR;
+	    if (char_attr <= HL_ALL)
+		new_en.ae_attr = char_attr;
+	}
+	if (popup_attr > HL_ALL)
+	{
+	    popup_aep = syn_gui_attr2entry(popup_attr);
+	    if (popup_aep != NULL)
+	    {
+		// Blend fg: pum_bg toward underlying_fg.
+		// blend=0 (opaque): fg = pum_bg (text hidden)
+		// blend=100 (transparent): fg = underlying_fg (text visible)
+		if (popup_aep->ae_u.gui.bg_color != INVALCOLOR)
+		{
+		    int base_fg = 0xFFFFFF;
+		    if (char_aep != NULL
+			    && char_aep->ae_u.gui.fg_color != INVALCOLOR)
+			base_fg = char_aep->ae_u.gui.fg_color;
+		    new_en.ae_u.gui.fg_color = blend_colors(
+			    popup_aep->ae_u.gui.bg_color, base_fg, blend);
+		}
+		// Blend bg: popup bg toward underlying bg.
+		if (popup_aep->ae_u.gui.bg_color != INVALCOLOR)
+		{
+		    guicolor_T underlying_bg = INVALCOLOR;
+		    if (char_aep != NULL)
+			underlying_bg = char_aep->ae_u.gui.bg_color;
+		    new_en.ae_u.gui.bg_color = blend_colors(
+			    popup_aep->ae_u.gui.bg_color,
+			    underlying_bg, blend);
+		}
+	    }
+	}
+	return get_attr_entry(&gui_attr_table, &new_en);
+    }
+#endif
+
+    if (IS_CTERM)
+    {
+	if (char_attr > HL_ALL)
+	    char_aep = syn_cterm_attr2entry(char_attr);
+	if (char_aep != NULL)
+	    new_en = *char_aep;
+	else
+	{
+	    CLEAR_FIELD(new_en);
+#ifdef FEAT_TERMGUICOLORS
+	    new_en.ae_u.cterm.bg_rgb = INVALCOLOR;
+	    new_en.ae_u.cterm.fg_rgb = INVALCOLOR;
+	    new_en.ae_u.cterm.ul_rgb = INVALCOLOR;
+#endif
+	    if (char_attr <= HL_ALL)
+		new_en.ae_attr = char_attr;
+	}
+	if (popup_attr > HL_ALL)
+	{
+	    popup_aep = syn_cterm_attr2entry(popup_attr);
+	    if (popup_aep != NULL)
+	    {
+		// Blend cterm fg: use popup bg (hides text when opaque)
+		if (popup_aep->ae_u.cterm.fg_color > 0)
+		    new_en.ae_u.cterm.fg_color =
+					popup_aep->ae_u.cterm.fg_color;
+		// Use popup cterm bg.
+		if (popup_aep->ae_u.cterm.bg_color > 0)
+		    new_en.ae_u.cterm.bg_color =
+					popup_aep->ae_u.cterm.bg_color;
+#ifdef FEAT_TERMGUICOLORS
+		// Blend fg_rgb: pum_bg toward underlying_fg.
+		if (popup_aep->ae_u.cterm.bg_rgb != INVALCOLOR)
+		{
+		    int base_fg = 0xFFFFFF;
+		    if (char_aep != NULL
+			    && char_aep->ae_u.cterm.fg_rgb != INVALCOLOR)
+			base_fg = char_aep->ae_u.cterm.fg_rgb;
+		    new_en.ae_u.cterm.fg_rgb = blend_colors(
+			    popup_aep->ae_u.cterm.bg_rgb, base_fg, blend);
+		}
+		// Blend bg_rgb.
+		if (popup_aep->ae_u.cterm.bg_rgb != INVALCOLOR)
+		{
+		    guicolor_T underlying_bg = INVALCOLOR;
+		    if (char_aep != NULL)
+			underlying_bg = char_aep->ae_u.cterm.bg_rgb;
+		    new_en.ae_u.cterm.bg_rgb = blend_colors(
+			    popup_aep->ae_u.cterm.bg_rgb,
+			    underlying_bg, blend);
+		}
+#endif
+	    }
+	}
+	return get_attr_entry(&cterm_attr_table, &new_en);
+    }
+
+    // term mode
+    if (char_attr > HL_ALL)
+	char_aep = syn_term_attr2entry(char_attr);
+    if (char_aep != NULL)
+	new_en = *char_aep;
+    else
+    {
+	CLEAR_FIELD(new_en);
+	if (char_attr <= HL_ALL)
+	    new_en.ae_attr = char_attr;
+    }
     return get_attr_entry(&term_attr_table, &new_en);
 }
 
@@ -3810,25 +4003,37 @@ syn_override(int id)
 }
 
 /*
+ * Lookup a highlight group name by pointer and length.
+ * If it is not found, 0 is returned.
+ */
+    static int
+syn_name2id_len(char_u *name, int len)
+{
+    char_u	name_u[MAX_SYN_NAME + 1];
+    hashitem_T	*hi;
+
+    if (len > MAX_SYN_NAME)
+	len = MAX_SYN_NAME;
+    mch_memmove(name_u, name, len);
+    name_u[len] = NUL;
+    vim_strup(name_u);
+    if (!highlight_ht_inited)
+	return 0;
+    hi = hash_find(&highlight_ht, name_u);
+    if (HASHITEM_EMPTY(hi))
+	return 0;
+    return HI2HLNAME(hi)->hn_id;
+}
+
+/*
  * Lookup a highlight group name and return its ID.
  * If it is not found, 0 is returned.
  */
     int
 syn_name2id(char_u *name)
 {
-    int		i;
-    char_u	name_u[MAX_SYN_NAME + 1];
-
-    // Avoid using stricmp() too much, it's slow on some systems
-    // Avoid alloc()/free(), these are slow too.  ID names over 200 chars
-    // don't deserve to be found!
-    vim_strncpy(name_u, name, MAX_SYN_NAME);
-    vim_strup(name_u);
-    for (i = highlight_ga.ga_len; --i >= 0; )
-	if (HL_TABLE()[i].sg_name_u != NULL
-		&& STRCMP(name_u, HL_TABLE()[i].sg_name_u) == 0)
-	    break;
-    return i + 1;
+    // Avoid using stricmp() too much, it's slow on some systems.
+    return syn_name2id_len(name, (int)STRLEN(name));
 }
 
 /*
@@ -3876,16 +4081,7 @@ syn_id2name(int id)
     int
 syn_namen2id(char_u *linep, int len)
 {
-    char_u  *name;
-    int	    id = 0;
-
-    name = vim_strnsave(linep, len);
-    if (name == NULL)
-	return 0;
-
-    id = syn_name2id(name);
-    vim_free(name);
-    return id;
+    return syn_name2id_len(linep, len);
 }
 
 /*
@@ -3905,15 +4101,14 @@ syn_check_group(char_u *pp, int len)
 	emsg(_(e_highlight_group_name_too_long));
 	return 0;
     }
-    name = vim_strnsave(pp, len);
-    if (name == NULL)
-	return 0;
-
-    id = syn_name2id(name);
+    id = syn_name2id_len(pp, len);
     if (id == 0)			// doesn't exist yet
+    {
+	name = vim_strnsave(pp, len);
+	if (name == NULL)
+	    return 0;
 	id = syn_add_group(name);
-    else
-	vim_free(name);
+    }
     return id;
 }
 
@@ -3952,6 +4147,8 @@ syn_add_group(char_u *name)
     {
 	highlight_ga.ga_itemsize = sizeof(hl_group_T);
 	highlight_ga.ga_growsize = 10;
+	hash_init(&highlight_ht);
+	highlight_ht_inited = true;
     }
 
     if (highlight_ga.ga_len >= MAX_HL_ID)
@@ -3968,11 +4165,20 @@ syn_add_group(char_u *name)
 	return 0;
     }
 
-    name_up = vim_strsave_up(name);
-    if (name_up == NULL)
     {
-	vim_free(name);
-	return 0;
+	hlname_T    *hn;
+	int	    len = (int)STRLEN(name);
+
+	hn = alloc(offsetof(hlname_T, hn_key) + len + 1);
+	if (hn == NULL)
+	{
+	    vim_free(name);
+	    return 0;
+	}
+	vim_strncpy(hn->hn_key, name, len);
+	vim_strup(hn->hn_key);
+	hn->hn_id = highlight_ga.ga_len + 1;	// ID is index plus one
+	name_up = hn->hn_key;
     }
 
     CLEAR_POINTER(&(HL_TABLE()[highlight_ga.ga_len]));
@@ -3983,6 +4189,7 @@ syn_add_group(char_u *name)
     HL_TABLE()[highlight_ga.ga_len].sg_gui_fg = INVALCOLOR;
     HL_TABLE()[highlight_ga.ga_len].sg_gui_sp = INVALCOLOR;
 #endif
+    hash_add(&highlight_ht, name_up, "highlight");
     ++highlight_ga.ga_len;
 
     return highlight_ga.ga_len;		    // ID is index plus one
@@ -3995,9 +4202,14 @@ syn_add_group(char_u *name)
     static void
 syn_unadd_group(void)
 {
+    hashitem_T *hi;
+
     --highlight_ga.ga_len;
+    hi = hash_find(&highlight_ht, HL_TABLE()[highlight_ga.ga_len].sg_name_u);
+    if (!HASHITEM_EMPTY(hi))
+	hash_remove(&highlight_ht, hi, "highlight");
     vim_free(HL_TABLE()[highlight_ga.ga_len].sg_name);
-    vim_free(HL_TABLE()[highlight_ga.ga_len].sg_name_u);
+    vim_free(HL_TABLE()[highlight_ga.ga_len].sg_name_u - HLNAME_KEY_OFF);
 }
 
 /*
@@ -4246,6 +4458,7 @@ highlight_changed(void)
     int		hlf;
     int		i;
     char_u	*p;
+    char_u	*default_hl;
     int		attr;
     char_u	*end;
     int		id;
@@ -4278,14 +4491,22 @@ highlight_changed(void)
 	highlight_ids[hlf] = 0;
     }
 
+    default_hl = get_highlight_default();
+
     // First set all attributes to their default value.
-    // Then use the attributes from the 'highlight' option.
+    // Then use the attributes from the 'highlight' option, unless it already
+    // matches the default and would repeat the same work.
     for (i = 0; i < 2; ++i)
     {
 	if (i)
+	{
+	    if (default_hl != NULL && p_hl != NULL
+				      && STRCMP(default_hl, p_hl) == 0)
+		continue;
 	    p = p_hl;
+	}
 	else
-	    p = get_highlight_default();
+	    p = default_hl;
 	if (p == NULL)	    // just in case
 	    continue;
 
@@ -5263,7 +5484,23 @@ add_attr_and_value(char_u *dptr, char_u *attr, int attrlen, char_u *value)
 	return dptr;
 
     vallen = STRLEN(value);
-    if (dptr + attrlen + vallen + 1 < hlsetBuf + HLSETBUFSZ)
+    // When the value contains a space and the attribute has an "=" (i.e. it
+    // is a key=value pair), surround the value with single quotes so that
+    // do_highlight() can parse it correctly.
+    if (vim_strchr(value, ' ') != NULL && vim_strchr(attr, '=') != NULL)
+    {
+	if (dptr + attrlen + vallen + 3 < hlsetBuf + HLSETBUFSZ)
+	{
+	    STRCPY(dptr, attr);
+	    dptr += attrlen;
+	    *dptr++ = '\'';
+	    STRCPY(dptr, value);
+	    dptr += vallen;
+	    *dptr++ = '\'';
+	    *dptr = NUL;
+	}
+    }
+    else if (dptr + attrlen + vallen + 1 < hlsetBuf + HLSETBUFSZ)
     {
 	STRCPY(dptr, attr);
 	dptr += attrlen;
@@ -5568,9 +5805,10 @@ set_highlight_attr(hl_override_T *arr, int len, bool update_ids)
     bool
 push_highlight_overrides(hl_override_T *arr, int len)
 {
-    // Don't want to do anything if "arr" is NULL or if "arr" is already the
-    // current override.
-    if (arr == NULL || (overrides != NULL && overrides->arr == arr))
+    // Don't want to do anything if "arr" is already the current override. If
+    // "arr" is NULL (but overrides->arr is not), then still push an override,
+    // but "->arr" will just be NULL so any previous overrides are cleared.
+    if (overrides != NULL && overrides->arr == arr)
 	return false;
 
     hl_overrides_T *set;
@@ -5595,7 +5833,8 @@ push_highlight_overrides(hl_override_T *arr, int len)
     memcpy(highlight_attr, highlight_attr_raw, sizeof(highlight_attr));
 
     // Update highlight_attr[] array
-    set_highlight_attr(arr, len, false);
+    if (arr != NULL)
+	set_highlight_attr(arr, len, false);
 
     return true;
 }

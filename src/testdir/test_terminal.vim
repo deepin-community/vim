@@ -2441,4 +2441,39 @@ func Test_term_TextChangedT_close()
   augroup END
 endfunc
 
+func Test_terminal_disable_kitty_keyboard()
+  CheckRunVimInTerminal
+  let cmd = ['sh', '-c', 'printf ''\033[>1u\033[?u\033[<u\033[?u''; sleep 1']
+  let buf = term_start(cmd)
+  let job = term_getjob(buf)
+  call WaitForAssert({-> assert_equal('dead', job_status(job))})
+  call WaitForAssert({-> assert_equal('^[[?1u^[[?0u', term_getline(buf, 1))})
+  bwipe!
+endfunc
+
+func Test_terminal_unwraps()
+  CheckNotMSWindows
+
+  30vnew
+
+  redraw
+  let buf = term_start("echo 1+2+3+4+5+6+7+8+9+10+11+12+13+14+15")
+  " Wait until both wrapped lines have appeared in the terminal
+  call WaitForAssert({-> assert_equal('14+15', term_getline(buf, 2))})
+
+  " A long wrapped line appears as 2 lines in libvterm
+  let l = term_getline(buf, 1)
+  call assert_equal('1+2+3+4+5+6+7+8+9+10+11+12+13+', l)
+
+  let l = term_getline(buf, 2)
+  call assert_equal('14+15', l)
+
+  call TermWait(buf)
+  " It should appear as a single buffer line in vim
+  let lastline = getline('$')
+  call assert_equal('1+2+3+4+5+6+7+8+9+10+11+12+13+14+15', lastline)
+
+  bwipe!
+endfunc
+
 " vim: shiftwidth=2 sts=2 expandtab

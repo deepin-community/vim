@@ -2956,7 +2956,7 @@ ins_compl_stop(int c, int prev_mode, int retval)
 	    want_cindent = FALSE;	// don't do it again
 	}
     }
-    else
+    else if (!compl_autocomplete || compl_used_match)
     {
 	int prev_col = curwin->w_cursor.col;
 
@@ -4538,6 +4538,8 @@ fuzzy_longest_match(void)
 	return;
     }
 
+    if ((size_t)compl_num_bests > SIZE_MAX / sizeof(compl_T *))
+	return;
     compl_best_matches = (compl_T **)alloc(compl_num_bests * sizeof(compl_T *));
     if (compl_best_matches == NULL)
 	return;
