@@ -1,3 +1,11 @@
+vim (2:9.2.0387-0deepin1) unstable; urgency=medium
+
+  * New upstream version 9.2.0387
+  * Drop 2 patches as they're already in tree
+  * Refresh patches
+
+ -- Tianyu Chen <sweetyfish@deepin.org>  Wed, 22 Apr 2026 14:10:42 +0800
+
 vim (2:9.2.0218-1deepin3) unstable; urgency=medium
 
   * patch 9.2.0276: [security]: modeline security bypass

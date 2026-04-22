@@ -8,7 +8,7 @@ Closes: #382541
  1 file changed, 8 insertions(+)
 
 diff --git a/runtime/autoload/dist/script.vim b/runtime/autoload/dist/script.vim
-index de168f0..f2b273f 100644
+index 0106900..cfed29d 100644
 --- a/runtime/autoload/dist/script.vim
 +++ b/runtime/autoload/dist/script.vim
 @@ -430,6 +430,14 @@ def DetectFromText(line1: string)

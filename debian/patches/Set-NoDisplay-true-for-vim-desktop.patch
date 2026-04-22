@@ -11,10 +11,10 @@ Forwarded: not-needed
  2 files changed, 2 insertions(+)
 
 diff --git a/runtime/vim.desktop b/runtime/vim.desktop
-index 45f6c20..341474f 100644
+index 770236c..cea5430 100644
 --- a/runtime/vim.desktop
 +++ b/runtime/vim.desktop
-@@ -112,6 +112,7 @@ Comment[zh_TW]=編輯文字檔
+@@ -118,6 +118,7 @@ Comment[zh_TW]=編輯文字檔
  TryExec=vim
  Exec=vim %F
  Terminal=true
