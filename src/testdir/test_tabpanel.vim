@@ -249,6 +249,76 @@ function Test_tabpanel_mouse()
   let &showtabline = save_showtabline
 endfunc
 
+func g:TplClickTestFunc(info)
+  let g:tpl_click_info = a:info
+  return 0
+endfunc
+
+function Test_tabpanel_click_handler()
+  let save_mouse = &mouse
+  let save_stal = &showtabline
+  let save_stpl = &showtabpanel
+  let save_tpl = &tabpanel
+  let save_tplo = &tabpanelopt
+  set mouse=a
+  set showtabline=0
+  set showtabpanel=2
+  set tabpanelopt=columns:16
+  tabnew
+  tabnew
+
+  " Place two adjacent %[FuncName] regions on every tab label.
+  set tabpanel=%1[TplClickTestFunc][A]%[]%2[TplClickTestFunc][B]%[]
+  redraw!
+
+  " Click on [A] region in the first tab label (row 1).
+  call test_setmouse(1, 2)
+  call feedkeys("\<LeftMouse>\<LeftRelease>", 'xt')
+  call assert_true(exists('g:tpl_click_info'))
+  call assert_equal('l', g:tpl_click_info.button)
+  call assert_equal(1, g:tpl_click_info.nclicks)
+  call assert_equal(1, g:tpl_click_info.minwid)
+  call assert_equal(0, g:tpl_click_info.winid)
+  call assert_equal('tabpanel', g:tpl_click_info.area)
+  call assert_equal(1, g:tpl_click_info.tabnr)
+  unlet! g:tpl_click_info
+
+  " Click on [B] region in the second tab label (row 2).
+  call test_setmouse(2, 5)
+  call feedkeys("\<LeftMouse>\<LeftRelease>", 'xt')
+  call assert_true(exists('g:tpl_click_info'))
+  call assert_equal(2, g:tpl_click_info.minwid)
+  call assert_equal(2, g:tpl_click_info.tabnr)
+  unlet! g:tpl_click_info
+
+  " Middle click on [A] in tab 3.
+  call test_setmouse(3, 2)
+  call feedkeys("\<MiddleMouse>\<MiddleRelease>", 'xt')
+  call assert_true(exists('g:tpl_click_info'))
+  call assert_equal('m', g:tpl_click_info.button)
+  call assert_equal(1, g:tpl_click_info.minwid)
+  call assert_equal(3, g:tpl_click_info.tabnr)
+  unlet! g:tpl_click_info
+
+  " A click outside any region (but still in the panel) must not fire the
+  " callback, and should fall through to the normal tab selection.
+  set tabpanel=xxx%1[TplClickTestFunc][Y]%[]
+  redraw!
+  tabfirst
+  call test_setmouse(2, 1)
+  call feedkeys("\<LeftMouse>\<LeftRelease>", 'xt')
+  call assert_false(exists('g:tpl_click_info'))
+  call assert_equal(2, tabpagenr())
+
+  tabonly!
+  call s:reset()
+  let &tabpanel = save_tpl
+  let &tabpanelopt = save_tplo
+  let &showtabpanel = save_stpl
+  let &showtabline = save_stal
+  let &mouse = save_mouse
+endfunc
+
 function Test_tabpanel_drawing()
   CheckScreendump
 
@@ -892,8 +962,68 @@ func Test_tabpanel_large_columns()
   call assert_fails(':set tabpanelopt=columns:-1', 'E474:')
 endfunc
 
+func Test_tabpanel_scrollopt_accepted()
+  " 'scroll' / 'scrollbar' must be accepted in 'tabpanelopt'.
+  set tabpanelopt=scroll
+  call assert_equal('scroll', &tabpanelopt)
+  set tabpanelopt=scrollbar
+  call assert_equal('scrollbar', &tabpanelopt)
+
+  " Combination with other values.
+  set tabpanelopt=align:right,scroll
+  call assert_equal('align:right,scroll', &tabpanelopt)
+  set tabpanelopt=columns:15,vert,scrollbar
+  call assert_equal('columns:15,vert,scrollbar', &tabpanelopt)
+  set tabpanelopt=align:right,columns:12,vert,scrollbar
+  call assert_equal('align:right,columns:12,vert,scrollbar', &tabpanelopt)
+
+  " Unknown values must still fail.
+  call assert_fails(':set tabpanelopt=scrol', 'E474:')
+  call assert_fails(':set tabpanelopt=scrollbarx', 'E474:')
+
+  call s:reset()
+endfunc
+
+func Test_tabpanel_scroll_many_tabs()
+  let save_lines = &lines
+  let save_showtabpanel = &showtabpanel
+  let save_tabpanelopt = &tabpanelopt
+
+  " Make the screen short so the tab list exceeds the visible height.
+  set lines=8
+  set showtabpanel=2
+  set tabpanelopt=scroll
+  for i in range(20)
+    tabnew
+  endfor
+
+  " Should not crash with many tabs and scroll enabled.
+  redraw!
+
+  " Switching to scrollbar resets the offset but must also not crash.
+  set tabpanelopt=scrollbar
+  redraw!
+
+  " Disabling scroll returns to normal behavior.
+  set tabpanelopt=
+  redraw!
+
+  " Right alignment with scrollbar.
+  set tabpanelopt=align:right,scrollbar
+  redraw!
+
+  " Vertical separator with scrollbar.
+  set tabpanelopt=columns:10,vert,scrollbar
+  redraw!
+
+  " Cleanup.
+  %bwipeout!
+  let &tabpanelopt = save_tabpanelopt
+  let &showtabpanel = save_showtabpanel
+  let &lines = save_lines
+endfunc
+
 func Test_tabpanel_variable_height()
-  CheckFeature tabpanel
 
   let save_lines = &lines
   let save_showtabpanel = &showtabpanel

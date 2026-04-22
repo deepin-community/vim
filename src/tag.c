@@ -476,7 +476,7 @@ do_tag(
 		    curwin->w_cursor.lnum = saved_fmark.mark.lnum;
 		}
 		curwin->w_cursor.col = saved_fmark.mark.col;
-		curwin->w_set_curswant = TRUE;
+		curwin->w_set_curswant = true;
 		check_cursor();
 #ifdef FEAT_FOLDING
 		if ((fdo_flags & FDO_TAG) && old_KeyTyped)
@@ -3080,7 +3080,7 @@ find_tags(
 
     int		save_emsg_off;
 
-    int		help_save;
+    bool	help_save;
 #ifdef FEAT_MULTI_LANG
     int		i;
     char_u	*saved_pat = NULL;		// copy of pat[]
@@ -3122,13 +3122,13 @@ find_tags(
      * Initialize a few variables
      */
     if (st.help_only)				// want tags from help file
-	curbuf->b_help = TRUE;			// will be restored later
+	curbuf->b_help = true;			// will be restored later
 #ifdef FEAT_CSCOPE
     else if (use_cscope)
     {
 	// Make sure we don't mix help and cscope, confuses Coverity.
 	st.help_only = FALSE;
-	curbuf->b_help = FALSE;
+	curbuf->b_help = false;
     }
 #endif
 
@@ -3898,7 +3898,7 @@ jumpto_tag(
 
     if (GETFILE_SUCCESS(getfile_result))	// got to the right file
     {
-	curwin->w_set_curswant = TRUE;
+	curwin->w_set_curswant = true;
 	postponed_split = 0;
 
 	save_magic_overruled = magic_overruled;
@@ -4137,8 +4137,10 @@ expand_tag_fname(char_u *fname, char_u *tag_fname, int expand)
 
     /*
      * Expand file name (for environment variables) when needed.
+     * Disallow backticks, they could execute arbitrary shell
+     * commands.  This is not needed for tag filenames.
      */
-    if (expand && mch_has_wildcard(fname))
+    if (expand && mch_has_wildcard(fname) && vim_strchr(fname, '`') == NULL)
     {
 	ExpandInit(&xpc);
 	xpc.xp_context = EXPAND_FILES;

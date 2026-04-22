@@ -1492,7 +1492,12 @@ win_redr_custom(
 	stl_click_region_T  **out_regions;
 	int		    *out_count;
 	int		    base_col;
+	int		    base_row;
 	int		    click_count = 0;
+
+	// clicktab reflects the last iteration of the draw loop above, so
+	// the regions belong to the last drawn row.
+	base_row = row + stlh_cnt - 1;
 
 	if (wp != NULL)
 	{
@@ -1547,11 +1552,13 @@ win_redr_custom(
 		    // Close previous region if there was one.
 		    if (cur_funcname != NULL)
 		    {
+			regions[rcount].row = base_row;
 			regions[rcount].col_start = region_start;
 			regions[rcount].col_end = base_col + len;
 			regions[rcount].funcname =
 					    vim_strsave(cur_funcname);
 			regions[rcount].minwid = cur_minwid;
+			regions[rcount].tabnr = 0;
 			rcount++;
 		    }
 
@@ -1563,11 +1570,13 @@ win_redr_custom(
 		// Close final region if it extends to the end.
 		if (cur_funcname != NULL)
 		{
+		    regions[rcount].row = base_row;
 		    regions[rcount].col_start = region_start;
 		    regions[rcount].col_end = base_col + maxwidth;
 		    regions[rcount].funcname =
 					vim_strsave(cur_funcname);
 		    regions[rcount].minwid = cur_minwid;
+		    regions[rcount].tabnr = 0;
 		    rcount++;
 		}
 
@@ -1805,6 +1814,21 @@ screen_puts_len(
 	force_redraw_this = force_redraw_next;
 	force_redraw_next = FALSE;
 
+	// When drawing pum text with opacity, blend the popup bg with the
+	// saved underlying bg so text cells match the padding cells that
+	// use hl_pum_blend_attr.  Without this, popup text appears on a
+	// solid bg while padding shows a blended bg, creating a visible
+	// seam.
+	int cell_attr = attr;
+	if (screen_pum_blend > 0 && pum_bg_attrs != NULL
+		&& row >= pum_bg_top && row < pum_bg_bot
+		&& col < pum_bg_cols)
+	{
+	    int soff = (row - pum_bg_top) * pum_bg_cols + col;
+	    cell_attr = hl_blend_attr(pum_bg_attrs[soff], attr,
+					    screen_pum_blend, FALSE);
+	}
+
 	need_redraw = ScreenLines[off] != c
 		|| (mbyte_cells == 2
 		    && ScreenLines[off + 1] != (enc_dbcs ? ptr[1] : 0))
@@ -1816,7 +1840,7 @@ screen_puts_len(
 				(u8char_T)(c < 0x80 && u8cc[0] == 0 ? 0 : u8c)
 			|| (ScreenLinesUC[off] != 0
 					  && screen_comp_differs(off, u8cc))))
-		|| ScreenAttrs[off] != attr
+		|| ScreenAttrs[off] != cell_attr
 		|| exmode_active;
 
 	if ((need_redraw || force_redraw_this) && !skip_for_popup(row, col))
@@ -1877,7 +1901,7 @@ screen_puts_len(
 			    && (*mb_off2cells)(off + 1, max_off) > 1)))
 		ScreenLines[off + mbyte_blen] = 0;
 	    ScreenLines[off] = c;
-	    ScreenAttrs[off] = attr;
+	    ScreenAttrs[off] = cell_attr;
 	    ScreenCols[off] = -1;
 	    if (enc_utf8)
 	    {
@@ -1898,7 +1922,10 @@ screen_puts_len(
 		if (mbyte_cells == 2)
 		{
 		    ScreenLines[off + 1] = 0;
-		    ScreenAttrs[off + 1] = attr;
+		    ScreenLinesUC[off + 1] = 0;
+		    for (int ci = 0; ci < Screen_mco; ++ci)
+			ScreenLinesC[ci][off + 1] = 0;
+		    ScreenAttrs[off + 1] = cell_attr;
 		    ScreenCols[off + 1] = -1;
 		}
 		screen_char(off, row, col);
@@ -1906,7 +1933,7 @@ screen_puts_len(
 	    else if (mbyte_cells == 2)
 	    {
 		ScreenLines[off + 1] = ptr[1];
-		ScreenAttrs[off + 1] = attr;
+		ScreenAttrs[off + 1] = cell_attr;
 		ScreenCols[off + 1] = -1;
 		screen_char_2(off, row, col);
 	    }
@@ -2784,7 +2811,57 @@ skip_opacity_fill:
 			&& col < pum_bg_cols)
 		{
 		    int soff = (row - pum_bg_top) * pum_bg_cols + col;
+
+		    // Skip the trailing cell of a wide background char: its
+		    // leading cell already emitted the full wide glyph via
+		    // screen_char(); drawing here would clobber the right half.
+		    // Only applies when the previous cell was actually processed
+		    // in this fill range -- if the fill starts here (col ==
+		    // start_col), the "wide lead" is outside our range (e.g.,
+		    // popup text wrote a narrow cell there), so we fall through
+		    // to the regular blend path which renders a blended space.
+		    if (enc_utf8 && pum_bg_linesUC != NULL
+			    && col > start_col
+			    && pum_bg_linesUC[soff] == 0
+			    && pum_bg_linesUC[soff - 1] != 0
+			    && utf_char2cells(pum_bg_linesUC[soff - 1]) == 2)
+		    {
+			ScreenLines[off] = 0;
+			if (ScreenLinesUC != NULL)
+			    ScreenLinesUC[off] = 0;
+			ScreenAttrs[off] = ScreenAttrs[off - 1];
+			goto next_col;
+		    }
+
 		    int underlying_attr = pum_bg_attrs[soff];
+
+		    // If restoring the leading cell of a wide background char
+		    // would extend past the end of the fill range (e.g. into a
+		    // popup border cell on the right edge), render a blended
+		    // space instead so the border at col+1 is preserved.
+		    // Likewise, if this cell is the trailing half of a wide
+		    // background char whose leading cell is outside the fill
+		    // range (e.g., popup text wrote a narrow cell there),
+		    // restoring the trailing alone would emit a stray NUL.
+		    if (enc_utf8 && pum_bg_linesUC != NULL
+			    && ((pum_bg_linesUC[soff] != 0
+				    && utf_char2cells(pum_bg_linesUC[soff]) == 2
+				    && col + 1 >= end_col)
+				|| (col == start_col
+				    && pum_bg_linesUC[soff] == 0
+				    && col > 0
+				    && pum_bg_linesUC[soff - 1] != 0
+				    && utf_char2cells(pum_bg_linesUC[soff - 1])
+								       == 2)))
+		    {
+			ScreenLines[off] = ' ';
+			if (ScreenLinesUC != NULL)
+			    ScreenLinesUC[off] = 0;
+			ScreenAttrs[off] = hl_pum_blend_attr(underlying_attr,
+						attr, screen_pum_blend);
+			screen_char(off, row, col);
+			goto next_col;
+		    }
 
 		    // Restore underlying character so text shows through.
 		    ScreenLines[off] = pum_bg_lines[soff];
@@ -3861,7 +3938,7 @@ win_ins_lines(
      */
     if (!did_delete)
     {
-	wp->w_redr_status = TRUE;
+	wp->w_redr_status = true;
 	redraw_cmdline = TRUE;
 	nextrow = W_WINROW(wp) + wp->w_height + wp->w_status_height;
 	lastrow = nextrow + line_count;
@@ -3877,7 +3954,7 @@ win_ins_lines(
 	// deletion will have messed up other windows
 	if (did_delete)
 	{
-	    wp->w_redr_status = TRUE;
+	    wp->w_redr_status = true;
 	    win_rest_invalid(W_NEXT(wp));
 	}
 	return FAIL;
@@ -3927,7 +4004,7 @@ win_del_lines(
 	if (screen_ins_lines(0, W_WINROW(wp) + wp->w_height - line_count,
 			      line_count, (int)Rows, clear_attr, NULL) == FAIL)
 	{
-	    wp->w_redr_status = TRUE;
+	    wp->w_redr_status = true;
 	    win_rest_invalid(wp->w_next);
 	}
     }
@@ -4043,7 +4120,7 @@ win_rest_invalid(win_T *wp)
     while (wp != NULL)
     {
 	redraw_win_later(wp, UPD_NOT_VALID);
-	wp->w_redr_status = TRUE;
+	wp->w_redr_status = true;
 	wp = wp->w_next;
     }
     redraw_cmdline = TRUE;
@@ -5129,9 +5206,9 @@ vsep_row_is_curwin(win_T *wp, int row)
 	return true;
 
     // Check if curwin is immediately to the right of wp's separator and
-    // "row" is within curwin's row range.
+    // "row" is within curwin's row range (including the winbar).
     if (curwin->w_wincol == W_ENDCOL(wp) + wp->w_vsep_width
-	    && row >= W_WINROW(curwin)
+	    && row >= curwin->w_winrow
 	    && row < W_WINROW(curwin) + curwin->w_height)
 	return true;
 
@@ -5173,7 +5250,7 @@ right_neighbor_at_row(win_T *wp, int row)
 
     FOR_ALL_WINDOWS(rn)
 	if (rn->w_wincol == rcol
-		&& row >= W_WINROW(rn)
+		&& row >= rn->w_winrow
 		&& row < W_WINROW(rn) + rn->w_height + rn->w_status_height)
 	    return rn;
     return NULL;
