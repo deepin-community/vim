@@ -8,7 +8,7 @@ msgid ""
 msgstr ""
 "Project-Id-Version: Vim\n"
 "Report-Msgid-Bugs-To: vim-dev@vim.org\n"
-"POT-Creation-Date: 2026-03-20 20:44+0800\n"
+"POT-Creation-Date: 2026-04-09 20:33+0000\n"
 "PO-Revision-Date: YEAR-MO-DA HO:MI+ZONE\n"
 "Last-Translator: FULL NAME <EMAIL@ADDRESS>\n"
 "Language-Team: LANGUAGE <LL@li.org>\n"
@@ -2267,6 +2267,10 @@ msgid " (Interrupted)"
 msgstr ""
 
 msgid "Beep!"
+msgstr ""
+
+#, c-format
+msgid "Executing directly: \"%s\""
 msgstr ""
 
 #, c-format
@@ -5863,6 +5867,9 @@ msgstr ""
 msgid "E648: Invalid buffer identifier in close"
 msgstr ""
 
+msgid "E649: Invalid identifier name in defineAnnoType"
+msgstr ""
+
 msgid "E650: Invalid buffer identifier in defineAnnoType"
 msgstr ""
 
@@ -8752,7 +8759,7 @@ msgstr ""
 msgid "E1546: Cannot switch to a closing buffer"
 msgstr ""
 
-msgid "E1547: This version of Vim does support :redrawtabpanel"
+msgid "E1547: This version of Vim does not support :redrawtabpanel"
 msgstr ""
 
 msgid "E1548: Wayland connection is unavailable"
@@ -8849,29 +8856,14 @@ msgstr ""
 msgid "E1574: gethostbyname(): cannot resolve hostname in channel_listen()"
 msgstr ""
 
+msgid "E1575: Cannot create pipes"
+msgstr ""
+
 #. type of cmdline window or 0
 #. result of cmdline window or 0
 #. buffer of cmdline window or NULL
 #. window of cmdline window or NULL
 msgid "--No lines in buffer--"
-msgstr ""
-
-msgid "int"
-msgstr ""
-
-msgid "long int"
-msgstr ""
-
-msgid "long long int"
-msgstr ""
-
-msgid "unsigned int"
-msgstr ""
-
-msgid "unsigned long int"
-msgstr ""
-
-msgid "unsigned long long int"
 msgstr ""
 
 msgid "pointer"
@@ -8880,13 +8872,7 @@ msgstr ""
 msgid "percent"
 msgstr ""
 
-msgid "char"
-msgstr ""
-
 msgid "string"
-msgstr ""
-
-msgid "float"
 msgstr ""
 
 #.
@@ -10029,6 +10015,9 @@ msgstr ""
 msgid "popup border style"
 msgstr ""
 
+msgid "additional options for the popup menu"
+msgstr ""
+
 msgid "user defined function for Insert mode completion"
 msgstr ""
 
@@ -10232,6 +10221,9 @@ msgid "enable using settings from modelines when reading a file"
 msgstr ""
 
 msgid "allow setting expression options from a modeline"
+msgstr ""
+
+msgid "only allow safe options to be set from a modeline"
 msgstr ""
 
 msgid "number of lines to check for modelines"

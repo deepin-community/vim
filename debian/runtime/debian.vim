@@ -5,10 +5,6 @@ set nocompatible	" Use Vim defaults instead of 100% vi compatibility
 " Now we set some defaults for the editor
 set ruler		" show the cursor position all the time
 
-" modelines have historically been a source of security/resource
-" vulnerabilities -- disable by default, even when 'nocompatible' is set
-set nomodeline
-
 " Suffixes that get lower priority when doing tab completion for filenames.
 " These are files we are not likely to want to edit or read.
 set suffixes=.bak,~,.swp,.o,.info,.aux,.log,.dvi,.bbl,.blg,.brf,.cb,.ind,.idx,.ilg,.inx,.out,.toc

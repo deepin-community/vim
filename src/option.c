@@ -404,7 +404,7 @@ set_init_xdg_rtp(void)
     char_u	*vimrc2 = NULL;
     char_u	*xdg_dir = NULL;
     char_u	*xdg_rtp = NULL;
-    char_u	*vimrc_xdg = NULL;
+    string_T	vimrc_xdg = {NULL, 0};
 
     // initialize chartab, so we can expand $HOME
     (void)init_chartab();
@@ -418,10 +418,11 @@ set_init_xdg_rtp(void)
 	should_free_xdg_dir = TRUE;
 	has_xdg_env = FALSE;
     }
-    vimrc_xdg = concat_fnames(xdg_dir, (char_u *)"vim/vimrc", TRUE);
+    concat_fnames(xdg_dir, STRLEN(xdg_dir),
+	(char_u *)"vim/vimrc", STRLEN_LITERAL("vim/vimrc"), TRUE, &vimrc_xdg);
 
     if (file_is_readable(vimrc1) || file_is_readable(vimrc2) ||
-	    !file_is_readable(vimrc_xdg))
+	    !file_is_readable(vimrc_xdg.string))
 	goto theend;
 
     xdg_rtp = has_xdg_env ? (char_u *)XDG_RUNTIMEPATH
@@ -450,7 +451,7 @@ set_init_xdg_rtp(void)
 theend:
     vim_free(vimrc1);
     vim_free(vimrc2);
-    vim_free(vimrc_xdg);
+    vim_free(vimrc_xdg.string);
     if (should_free_xdg_dir)
 	vim_free(xdg_dir);
 }
@@ -1542,6 +1543,44 @@ get_opt_op(char_u *arg)
     return op;
 }
 
+// Options that are allowed in a modeline when 'modelinestrict' is on.
+static char *modeline_whitelist[] =
+{
+    "autoindent",
+    "cindent",
+    "commentstring",
+    "expandtab",
+    "filetype",
+    "foldcolumn",
+    "foldenable",
+    "foldmethod",
+    "modifiable",
+    "readonly",
+    "rightleft",
+    "shiftwidth",
+    "smartindent",
+    "softtabstop",
+    "spell",
+    "spelllang",
+    "tabstop",
+    "textwidth",
+    "varsofttabstop",
+    "vartabstop",
+    NULL
+};
+
+/*
+ * Return TRUE if option "name" is in the modeline whitelist.
+ */
+    static bool
+is_modeline_whitelisted(char *name)
+{
+    for (int i = 0; modeline_whitelist[i] != NULL; i++)
+	if (STRCMP(name, modeline_whitelist[i]) == 0)
+	    return true;
+    return false;
+}
+
 /*
  * Validate whether the value of the option in "opt_idx" can be changed.
  * Returns FAIL if the option can be skipped or cannot be changed. Returns OK
@@ -1574,6 +1613,11 @@ validate_opt_idx(int opt_idx, int opt_flags, long_u flags, char **errmsg)
 	    *errmsg = e_not_allowed_in_modeline_when_modelineexpr_is_off;
 	    return FAIL;
 	}
+	// When 'modelinestrict' is on, only whitelisted options may be
+	// set from a modeline.  Silently skip others.
+	if (p_mlstr && opt_idx >= 0
+		&& !is_modeline_whitelisted(options[opt_idx].fullname))
+	    return FAIL;
 #ifdef FEAT_DIFF
 	// In diff mode some options are overruled.  This avoids that
 	// 'foldmethod' becomes "marker" instead of "diff" and that
@@ -1888,6 +1932,247 @@ stropt_remove_val(
 }
 
 /*
+ * Find a comma-separated item in "src" that matches the key part of "key".
+ * The key is the part before ':'.  "keylen" is the length including ':'.
+ * Returns a pointer to the found item in "src", or NULL if not found.
+ * Sets "*itemlenp" to the length of the found item (up to ',' or NUL).
+ */
+    static char_u *
+find_key_item(char_u *src, char_u *key, int keylen, int *itemlenp)
+{
+    char_u  *p = src;
+
+    while (*p != NUL)
+    {
+	// Check if this item starts with the same key
+	if ((p == src || *(p - 1) == ',')
+		&& STRNCMP(p, key, keylen) == 0)
+	{
+	    // Find the end of this item
+	    char_u *end = vim_strchr(p, ',');
+	    if (end == NULL)
+		end = p + STRLEN(p);
+	    *itemlenp = (int)(end - p);
+	    return p;
+	}
+	++p;
+    }
+    return NULL;
+}
+
+/*
+ * Remove one item of length "itemlen" at position "item" from comma-separated
+ * string "str" in-place.  Handles the comma before or after the item.
+ */
+    static void
+remove_comma_item(char_u *str, char_u *item, int itemlen)
+{
+    if (item[itemlen] == ',')
+	// Remove item and trailing comma
+	STRMOVE(item, item + itemlen + 1);
+    else if (item > str && *(item - 1) == ',')
+	// Last item: remove leading comma and item
+	STRMOVE(item - 1, item + itemlen);
+    else
+	// Only item
+	*item = NUL;
+}
+
+/*
+ * Remove all items matching "key" (with ':') from comma-separated string "str"
+ * in-place.  If "skip" is not NULL, the item at that position is kept.
+ */
+    static void
+remove_key_item(char_u *str, char_u *key, int keylen, char_u *skip)
+{
+    int	    itemlen;
+    char_u  *found;
+
+    while ((found = find_key_item(str, key, keylen, &itemlen)) != NULL)
+    {
+	if (found == skip)
+	{
+	    // Search for the next match after this one.
+	    char_u *next = found + itemlen;
+	    if (*next == ',')
+		++next;
+	    found = find_key_item(next, key, keylen, &itemlen);
+	    if (found == NULL)
+		break;
+	}
+
+	remove_comma_item(str, found, itemlen);
+    }
+}
+
+/*
+ * Append a comma-separated item to the end of "str" in-place.
+ * Adds a comma before the item if "str" is not empty.
+ */
+    static void
+append_item(char_u *str, char_u *item, int item_len)
+{
+    int len = (int)STRLEN(str);
+
+    if (len > 0)
+	str[len++] = ',';
+    mch_memmove(str + len, item, (size_t)item_len);
+    str[len + item_len] = NUL;
+}
+
+/*
+ * Prepend a comma-separated item to the beginning of "str" in-place.
+ * Adds a comma after the item if "str" is not empty.
+ */
+    static void
+prepend_item(char_u *str, char_u *item, int item_len)
+{
+    int len = (int)STRLEN(str);
+    int comma = (len > 0) ? 1 : 0;
+
+    mch_memmove(str + item_len + comma, str, (size_t)len + 1);
+    mch_memmove(str, item, (size_t)item_len);
+    if (comma)
+	str[item_len] = ',';
+}
+
+/*
+ * For a P_COMMA option: process "key:value" items in "newval" individually.
+ * Each comma-separated item in "newval" is checked against "origval":
+ *
+ * For OP_ADDING/OP_PREPENDING, each item is handled as follows:
+ *   - colon item, key exists with different value: replace (remove old, add)
+ *   - colon item, exact duplicate: do nothing
+ *   - colon item, not found: add to end
+ *   - non-colon item, exists: do nothing
+ *   - non-colon item, not found: add to end
+ *
+ * For OP_REMOVING, each item is handled as follows:
+ *   - colon item: remove by key match
+ *   - non-colon item: remove by exact match
+ *
+ * The result is written to "newval".
+ * Returns true if the operation was fully handled (caller should skip the
+ * normal add/remove logic).  Returns false if newval is a single non-colon
+ * item, meaning the caller should use the existing code path.
+ */
+    static bool
+stropt_handle_keymatch(
+    char_u	*origval,
+    char_u	*newval,
+    set_op_T	op,
+    int		flags UNUSED)
+{
+    char_u  *p;
+    char_u  *item_start;
+
+    // Check if newval contains any "key:value" item or multiple
+    // comma-separated items.  If neither, let the caller use the existing
+    // code path.
+    if (vim_strchr(newval, ':') == NULL && vim_strchr(newval, ',') == NULL)
+	return false;
+
+    // Work on a copy of newval for iteration.
+    char_u *newval_copy = vim_strsave(newval);
+    if (newval_copy == NULL)
+	return false;
+
+    // Build the result in newval.  Start with a copy of origval, then
+    // modify it per-item.  newval buffer has room for origval + arg.
+    STRCPY(newval, origval);
+
+    // Process each item individually, modifying newval in-place.
+    item_start = newval_copy;
+    for (;;)
+    {
+	p = vim_strchr(item_start, ',');
+	int item_len = (p == NULL)
+			    ? (int)STRLEN(item_start) : (int)(p - item_start);
+
+	if (item_len > 0)
+	{
+	    char_u *colon = vim_strchr(item_start, ':');
+	    if (colon != NULL && colon < item_start + item_len)
+	    {
+		int keylen = (int)(colon - item_start) + 1;
+
+		if (op == OP_ADDING || op == OP_PREPENDING)
+		{
+		    int old_itemlen;
+		    char_u *found = find_key_item(newval, item_start,
+						       keylen, &old_itemlen);
+		    if (found != NULL)
+		    {
+			if (old_itemlen == item_len
+				&& STRNCMP(found, item_start,
+							 item_len) == 0)
+			{
+			    // Exact duplicate: keep it in place, but
+			    // remove other items with the same key.
+			    remove_key_item(newval, item_start,
+							   keylen, found);
+			}
+			else
+			{
+			    // Key match with different value: remove all
+			    // items with the same key, then add.
+			    remove_key_item(newval, item_start,
+							    keylen, NULL);
+			    if (op == OP_PREPENDING)
+				prepend_item(newval, item_start, item_len);
+			    else
+				append_item(newval, item_start, item_len);
+			}
+		    }
+		    else
+		    {
+			// New item.
+			if (op == OP_PREPENDING)
+			    prepend_item(newval, item_start, item_len);
+			else
+			    append_item(newval, item_start, item_len);
+		    }
+		}
+		else if (op == OP_REMOVING)
+		    remove_key_item(newval, item_start, keylen, NULL);
+	    }
+	    else
+	    {
+		if (op == OP_ADDING || op == OP_PREPENDING)
+		{
+		    char_u *found = find_dup_item(newval, item_start,
+							   item_len, P_COMMA);
+		    if (found == NULL)
+		    {
+			// New item.
+			if (op == OP_PREPENDING)
+			    prepend_item(newval, item_start, item_len);
+			else
+			    append_item(newval, item_start, item_len);
+		    }
+		    // else: exact duplicate — do nothing
+		}
+		else if (op == OP_REMOVING)
+		{
+		    char_u *found = find_dup_item(newval, item_start,
+							   item_len, P_COMMA);
+		    if (found != NULL)
+			remove_comma_item(newval, found, item_len);
+		}
+	    }
+	}
+
+	if (p == NULL)
+	    break;
+	item_start = p + 1;
+    }
+
+    vim_free(newval_copy);
+
+    return true;
+}
+
+/*
  * Remove flags that appear twice in the string option value 'newval'.
  */
     static void
@@ -2002,33 +2287,42 @@ stropt_get_newval(
 		goto done;
 	}
 
-	// locate newval[] in origval[] when removing it and when adding to
-	// avoid duplicates
-	int len = 0;
-	if (op == OP_REMOVING || (flags & P_NODUP))
+	// For P_COMMA|P_COLON options with "key:value" items: process
+	// each item individually by matching on the key part.  If
+	// handled, skip the normal add/remove logic below.
+	if ((flags & P_COMMA) && (flags & P_COLON) && op != OP_NONE
+		&& stropt_handle_keymatch(origval, newval, op, flags))
+	    ;  // fully handled
+	else
 	{
-	    len = (int)STRLEN(newval);
-	    s = find_dup_item(origval, newval, len, flags);
-
-	    // do not add if already there
-	    if ((op == OP_ADDING || op == OP_PREPENDING) && s != NULL)
+	    // locate newval[] in origval[] when removing it and when
+	    // adding to avoid duplicates
+	    int len = 0;
+	    if (op == OP_REMOVING || (flags & P_NODUP))
 	    {
-		op = OP_NONE;
-		STRCPY(newval, origval);
+		len = (int)STRLEN(newval);
+		s = find_dup_item(origval, newval, len, flags);
+
+		// do not add if already there
+		if ((op == OP_ADDING || op == OP_PREPENDING) && s != NULL)
+		{
+		    op = OP_NONE;
+		    STRCPY(newval, origval);
+		}
+
+		// if no duplicate, move pointer to end of original value
+		if (s == NULL)
+		    s = origval + (int)STRLEN(origval);
 	    }
 
-	    // if no duplicate, move pointer to end of original value
-	    if (s == NULL)
-		s = origval + (int)STRLEN(origval);
+	    // concatenate the two strings; add a ',' if needed
+	    if (op == OP_ADDING || op == OP_PREPENDING)
+		stropt_concat_with_comma(origval, newval, op, flags);
+	    else if (op == OP_REMOVING)
+		// Remove newval[] from origval[]. (Note: "len" has been
+		// set above and is used here).
+		stropt_remove_val(origval, newval, flags, s, len);
 	}
-
-	// concatenate the two strings; add a ',' if needed
-	if (op == OP_ADDING || op == OP_PREPENDING)
-	    stropt_concat_with_comma(origval, newval, op, flags);
-	else if (op == OP_REMOVING)
-	    // Remove newval[] from origval[]. (Note: "len" has been set above
-	    // and is used here).
-	    stropt_remove_val(origval, newval, flags, s, len);
 
 	if (flags & P_FLAGLIST)
 	    // Remove flags that appear twice.
@@ -8989,8 +9283,6 @@ option_set_callback_func(char_u *optval UNUSED, callback_T *optcb UNUSED)
 
     free_callback(optcb);
     set_callback(optcb, &cb);
-    if (cb.cb_free_name)
-	vim_free(cb.cb_name);
     free_tv(tv);
 
     char_u  *dot = NULL;

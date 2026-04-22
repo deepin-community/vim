@@ -1,28 +1,48 @@
-vim (2:9.2.0218-1deepin3) unstable; urgency=medium
+vim (2:9.2.0355-1) unstable; urgency=medium
 
-  * patch 9.2.0276: [security]: modeline security bypass
-    Fixes: CVE-2026-34982 (GHSA-8h6p-m6gr-mpw9)
+  * New upstream tag
+    + 9.2.0350: New 'modelinestrict' option, enabled by default, to limit
+      which options can be set in modelines.
+  * Remove documentation patch about Debian disabling modeline option
+  * Remove "set nomodeline" from debian.vim
 
- -- Tianyu Chen <sweetyfish@deepin.org>  Wed, 01 Apr 2026 10:39:23 +0800
+ -- James McCoy <jamessan@debian.org>  Thu, 16 Apr 2026 09:10:49 -0400
 
-vim (2:9.2.0218-1deepin2) unstable; urgency=medium
+vim (2:9.2.0338-1) unstable; urgency=medium
 
-  * patch 9.2.0272: [security]: 'tabpanel' can be set in a modeline
-    Fixes: CVE-2026-34714 (GHSA-2gmj-rpqf-pxvh)
+  * New upstream tag
+    + Security fixes
+      - 9.2.0316: command injection in netbeans interface via defineAnnoType,
+        CVE-2026-39881
+  * Change libselinux1-dev Build-Depends to libselinux-dev
+  * Change libgpmg1-dev Build-Depends to libgpm-dev
 
- -- Tianyu Chen <sweetyfish@deepin.org>  Tue, 31 Mar 2026 11:42:59 +0800
+ -- James McCoy <jamessan@debian.org>  Sat, 11 Apr 2026 20:45:13 -0400
 
-vim (2:9.2.0218-1deepin1) unstable; urgency=medium
+vim (2:9.2.0315-1) unstable; urgency=medium
 
-  * Set NoDisplay=true for vim.desktop
+  * New upstream tag
+    + Security fixes
+      - 9.2.0272: modeline security bypass for 'tabpanel' option, allowing
+        expressions to be run from a modeline. (Closes: #1132447,
+        CVE-2026-34714)
+      - 9.2.0276: modeline security bypass for 'complete', 'guitabtooltip',
+        and 'printheader' options, allowing expressions to be run from a
+        modeline. (Closes: #1132450, CVE-2026-34982)
+      - 9.2.0280: Fix path traversal issue in zip plugin, CVE-2026-35177
+  * Remove revert of v9.1.0949, since that is now causing Vim tests to fail.
+    This reopens #1091729.
+  * Declare compliance with Policy 4.7.4
 
- -- lichenggang <lichenggang@uniontech.com>  Mon, 23 Mar 2026 10:45:09 +0800
+ -- James McCoy <jamessan@debian.org>  Tue, 07 Apr 2026 06:44:19 -0400
 
 vim (2:9.2.0218-1) unstable; urgency=medium
 
   * New upstream tag
     + 9.2.0168: Fix invalid pointer casting in string_convert(), causing test
       failures on big-endian systems
+    + runtime/syntax/python.vim: Fix E363 error when highlighting large
+      integers (Closes: #1127816)
     + Security fixes
       - 9.2.0137: crash when composing character as end of range in a regexp
         collection (Closes: #1130658, CVE-2026-32249)

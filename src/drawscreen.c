@@ -371,6 +371,16 @@ update_screen(int type_arg)
     pum_will_redraw = save_pum_will_redraw;
     pum_may_redraw();
 
+    // Redraw vertical separators to update VertSplit/VertSplitNC highlights
+    // when the current window has changed.
+    if (redraw_vseps)
+    {
+	redraw_vseps = FALSE;
+	FOR_ALL_WINDOWS(wp)
+	    if (wp->w_vsep_width > 0)
+		draw_vsep_win(wp, 0);
+    }
+
     // Reset b_mod_set flags.  Going through all windows is probably faster
     // than going through all buffers (there could be many buffers).
     FOR_ALL_WINDOWS(wp)
@@ -600,12 +610,12 @@ win_redr_status(win_T *wp, int ignore_pum UNUSED)
      */
     if (wp->w_vsep_width != 0 && wp->w_status_height != 0 && redrawing())
     {
-	if (stl_connected(wp))
-	    fillchar = fillchar_status(&attr, wp);
-	else
-	    fillchar = fillchar_vsep(&attr, wp);
 	for (i = 0; i < wp->w_status_height; i++)
-	    screen_putchar(fillchar, row + i, W_ENDCOL(wp), attr);
+	{
+	    int r = row + i;
+	    fillchar = sep_cell_at_row(&attr, wp, r);
+	    screen_putchar(fillchar, r, W_ENDCOL(wp), attr);
+	}
     }
     busy = FALSE;
 }
@@ -769,7 +779,7 @@ win_redr_ruler(win_T *wp, int always, int ignore_pum)
 	if (wp->w_p_list && wp->w_lcs_chars.tab1 == NUL)
 	{
 	    wp->w_p_list = FALSE;
-	    getvvcol(wp, &wp->w_cursor, NULL, &virtcol, NULL);
+	    getvvcol(wp, &wp->w_cursor, NULL, &virtcol, NULL, 0);
 	    wp->w_p_list = TRUE;
 	}
 
@@ -2078,17 +2088,10 @@ win_update(win_T *wp)
 	    if (VIsual_mode == Ctrl_V)
 	    {
 		colnr_T	    fromc, toc;
-#if defined(FEAT_LINEBREAK)
-		int	    save_ve_flags = curwin->w_ve_flags;
 
-		if (curwin->w_p_lbr)
-		    curwin->w_ve_flags = VE_ALL;
-#endif
-		getvcols(wp, &VIsual, &curwin->w_cursor, &fromc, &toc);
+		getvcols(wp, &VIsual, &curwin->w_cursor, &fromc, &toc,
+							 GETVCOL_END_EXCL_LBR);
 		++toc;
-#if defined(FEAT_LINEBREAK)
-		curwin->w_ve_flags = save_ve_flags;
-#endif
 		// Highlight to the end of the line, unless 'virtualedit' has
 		// "block".
 		if (curwin->w_curswant == MAXCOL)
@@ -2110,7 +2113,7 @@ win_update(win_T *wp)
 			    colnr_T t;
 
 			    pos.col = (int)ml_get_buf_len(wp->w_buffer, pos.lnum);
-			    getvvcol(wp, &pos, NULL, NULL, &t);
+			    getvvcol(wp, &pos, NULL, NULL, &t, 0);
 			    if (toc < t)
 				toc = t;
 			}
@@ -3421,6 +3424,13 @@ redraw_statuslines(void)
 	    if (ret)
 		pop_highlight_overrides();
 	}
+    if (redraw_vseps)
+    {
+	redraw_vseps = FALSE;
+	FOR_ALL_WINDOWS(wp)
+	    if (wp->w_vsep_width > 0)
+		draw_vsep_win(wp, 0);
+    }
     if (redraw_tabline)
 	draw_tabline();
 

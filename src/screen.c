@@ -945,27 +945,36 @@ skip_opacity:
 
 		popup_get_base_screen_cell(row, col + coloff,
 						NULL, &underlying_attr, NULL);
-		ScreenAttrs[off_to] = hl_blend_attr(underlying_attr,
-						combined, blend, FALSE);
 
-		// For double-wide characters, the second cell may have a
-		// different underlying attr (e.g. at popup boundary),
-		// so blend it independently.
+		// For double-wide characters, a terminal cannot render
+		// different background colors for the left and right
+		// halves.  When one half is over a lower opacity popup
+		// and the other is not, use the non-popup side's
+		// underlying attr for both to avoid color leaking.
 		if (char_cells == 2)
 		{
 		    int underlying_attr2 = 0;
+		    int scol1 = col + coloff;
+		    int over1 = popup_is_over_opacity(row, scol1);
+		    int over2 = popup_is_over_opacity(row, scol1 + 1);
 
-		    popup_get_base_screen_cell(row, col + coloff + 1,
+		    popup_get_base_screen_cell(row, scol1 + 1,
 						NULL, &underlying_attr2, NULL);
+		    if (over1 != over2)
+		    {
+			// One half is over a lower popup, the other is
+			// not.  Use the non-popup side for both.
+			if (over1)
+			    underlying_attr = underlying_attr2;
+			else
+			    underlying_attr2 = underlying_attr;
+		    }
 		    ScreenAttrs[off_to + 1] = hl_blend_attr(
 					underlying_attr2, combined, blend,
 					FALSE);
-		    if (blend == 100)
-			resolve_wide_char_opacity_attrs(row,
-				col + coloff, col + coloff + 1,
-				&ScreenAttrs[off_to],
-				&ScreenAttrs[off_to + 1]);
 		}
+		ScreenAttrs[off_to] = hl_blend_attr(underlying_attr,
+						combined, blend, FALSE);
 	    }
 	    else
 #endif
@@ -1117,9 +1126,7 @@ skip_opacity:
 	{
 	    if (!skip_for_popup(row, col + coloff))
 	    {
-		int c;
-
-		c = fillchar_vsep(&hl, wp);
+		int c = sep_cell_at_row(&hl, wp, row);
 		if (ScreenLines[off_to] != (schar_T)c
 			|| (enc_utf8 && (int)ScreenLinesUC[off_to]
 							!= (c >= 0x80 ? c : 0))
@@ -1170,21 +1177,23 @@ rl_mirror(char_u *str)
 #endif
 
 /*
- * Draw the verticap separator right of window "wp" starting with line "row".
+ * Draw the vertical separator right of window "wp" starting with line "row".
  */
     void
 draw_vsep_win(win_T *wp, int row)
 {
     int		hl;
-    int		c;
 
     if (!wp->w_vsep_width)
 	return;
 
-    // draw the vertical separator right of this window
-    c = fillchar_vsep(&hl, wp);
-    screen_fill(W_WINROW(wp) + row, W_WINROW(wp) + wp->w_height,
-	    W_ENDCOL(wp), W_ENDCOL(wp) + 1, c, ' ', hl);
+    // Draw the vertical separator right of this window, row by row, so
+    // that the cell can differ per row depending on adjacent windows.
+    for (int r = W_WINROW(wp) + row; r < W_WINROW(wp) + wp->w_height; ++r)
+    {
+	int c = sep_cell_at_row(&hl, wp, r);
+	screen_fill(r, r + 1, W_ENDCOL(wp), W_ENDCOL(wp) + 1, c, ' ', hl);
+    }
 }
 
 /*
@@ -1296,6 +1305,7 @@ win_redr_custom(
     int		opt_scope = 0;
     stl_hlrec_T *hltab;
     stl_hlrec_T *tabtab;
+    stl_clickrec_T *clicktab;
     win_T	*ewp;
     int		p_crb_save;
     bool	override_success = false;
@@ -1396,7 +1406,8 @@ win_redr_custom(
 	width = build_stl_str_hl_mline(ewp, buf, sizeof(buf),
 			&stl_tmp,
 			opt_name, opt_scope,
-			fillchar, maxwidth, &hltab, &tabtab);
+			fillchar, maxwidth, &hltab, &tabtab,
+			&clicktab);
 
 	// Make all characters printable.
 	p = transstr(buf);
@@ -1473,6 +1484,101 @@ win_redr_custom(
 	}
 	while (col < firstwin->w_wincol + topframe->fr_width)
 	    TabPageIdxs[col++] = fillchar;
+    }
+
+    // Resolve click function regions for statusline or tabline.
+    if (!draw_ruler)
+    {
+	stl_click_region_T  **out_regions;
+	int		    *out_count;
+	int		    base_col;
+	int		    click_count = 0;
+
+	if (wp != NULL)
+	{
+	    out_regions = &wp->w_stl_click;
+	    out_count = &wp->w_stl_click_count;
+	    base_col = wp->w_wincol;
+	}
+	else
+	{
+	    // 'tabline': store regions in global state since there is no
+	    // associated window.
+	    out_regions = &tabline_stl_click;
+	    out_count = &tabline_stl_click_count;
+	    base_col = firstwin->w_wincol;
+	}
+
+	// Count the click regions.
+	for (n = 0; clicktab[n].start != NULL; n++)
+	    click_count++;
+
+	// Free old click regions.
+	if (*out_regions != NULL)
+	{
+	    for (n = 0; n < *out_count; n++)
+		vim_free((*out_regions)[n].funcname);
+	    VIM_CLEAR(*out_regions);
+	}
+	*out_count = 0;
+
+	if (click_count > 0)
+	{
+	    stl_click_region_T *regions;
+	    int		    rcount = 0;
+
+	    regions = ALLOC_MULT(stl_click_region_T, click_count);
+	    if (regions != NULL)
+	    {
+		char_u	*cur_funcname = NULL;
+		int	cur_minwid = 0;
+		int	region_start = base_col;
+
+		// Walk through click records converting buffer positions
+		// to screen columns.
+		len = 0;
+		p = buf;
+		for (n = 0; clicktab[n].start != NULL; n++)
+		{
+		    len += vim_strnsize(p,
+				       (int)(clicktab[n].start - p));
+		    p = clicktab[n].start;
+
+		    // Close previous region if there was one.
+		    if (cur_funcname != NULL)
+		    {
+			regions[rcount].col_start = region_start;
+			regions[rcount].col_end = base_col + len;
+			regions[rcount].funcname =
+					    vim_strsave(cur_funcname);
+			regions[rcount].minwid = cur_minwid;
+			rcount++;
+		    }
+
+		    cur_funcname = clicktab[n].funcname;
+		    cur_minwid = clicktab[n].minwid;
+		    region_start = base_col + len;
+		}
+
+		// Close final region if it extends to the end.
+		if (cur_funcname != NULL)
+		{
+		    regions[rcount].col_start = region_start;
+		    regions[rcount].col_end = base_col + maxwidth;
+		    regions[rcount].funcname =
+					vim_strsave(cur_funcname);
+		    regions[rcount].minwid = cur_minwid;
+		    rcount++;
+		}
+
+		*out_regions = regions;
+		*out_count = rcount;
+	    }
+	}
+
+	// Free the funcname strings allocated by build_stl_str_hl_local().
+	for (n = 0; clicktab[n].start != NULL; n++)
+	    vim_free(clicktab[n].funcname);
     }
 
 theend:
@@ -2251,11 +2357,28 @@ screen_char(unsigned off, int row, int col)
     // output the final blended result.
     // Also suppress if this is a wide character whose second cell
     // is under an opacity popup.
-    if (popup_is_under_opacity(row, col)
-	    || (enc_utf8 && ScreenLinesUC[off] != 0
+    if (popup_is_under_opacity(row, col))
+    {
+	// If this is a wide character whose left half is under an opacity
+	// popup but right half is not, clear the right half so the old
+	// blended value doesn't remain as a ghost after popup_move().
+	if (enc_utf8 && ScreenLinesUC[off] != 0
 		&& utf_char2cells(ScreenLinesUC[off]) == 2
 		&& col + 1 < screen_Columns
-		&& popup_is_under_opacity(row, col + 1)))
+		&& !popup_is_under_opacity(row, col + 1))
+	{
+	    int off2 = off + 1;
+	    ScreenLines[off2] = ' ';
+	    ScreenLinesUC[off2] = 0;
+	    screen_char(off2, row, col + 1);
+	}
+	screen_cur_col = 9999;
+	return;
+    }
+    if (enc_utf8 && ScreenLinesUC[off] != 0
+	    && utf_char2cells(ScreenLinesUC[off]) == 2
+	    && col + 1 < screen_Columns
+	    && popup_is_under_opacity(row, col + 1))
     {
 	screen_cur_col = 9999;
 	return;
@@ -2498,6 +2621,7 @@ screen_fill(
     if (end_col > screen_Columns)	// safety check
 	end_col = screen_Columns;
     if (ScreenLines == NULL
+	    || start_row < 0		// should not happen
 	    || start_row >= end_row
 	    || start_col >= end_col)	// nothing to do
 	return;
@@ -2652,6 +2776,34 @@ screen_fill(
 		}
 skip_opacity_fill:
 #endif
+		// For pum opacity: blend pum background with underlying.
+		// Only for space cells; text cells are handled normally.
+		if (screen_pum_blend > 0 && c == ' '
+			&& pum_bg_attrs != NULL
+			&& row >= pum_bg_top && row < pum_bg_bot
+			&& col < pum_bg_cols)
+		{
+		    int soff = (row - pum_bg_top) * pum_bg_cols + col;
+		    int underlying_attr = pum_bg_attrs[soff];
+
+		    // Restore underlying character so text shows through.
+		    ScreenLines[off] = pum_bg_lines[soff];
+		    if (enc_utf8 && pum_bg_linesUC != NULL
+						&& ScreenLinesUC != NULL)
+		    {
+			int k;
+			ScreenLinesUC[off] = pum_bg_linesUC[soff];
+			for (k = 0; k < MAX_MCO; ++k)
+			    if (pum_bg_linesC[k] != NULL
+						    && ScreenLinesC[k] != NULL)
+				ScreenLinesC[k][off] = pum_bg_linesC[k][soff];
+		    }
+		    // Keep underlying fg, blend bg only.
+		    ScreenAttrs[off] = hl_pum_blend_attr(underlying_attr,
+					    attr, screen_pum_blend);
+		    screen_char(off, row, col);
+		    goto next_col;
+		}
 #if defined(FEAT_GUI) || defined(UNIX)
 		// The bold trick may make a single row of pixels appear in
 		// the next character.  When a bold character is removed, the
@@ -2698,9 +2850,7 @@ skip_opacity_fill:
 		if (!did_delete || c != ' ')
 		    screen_char(off, row, col);
 	    }
-#ifdef FEAT_PROP_POPUP
 next_col:
-#endif
 	    ScreenCols[off] = -1;
 	    ++off;
 	    if (col == start_col)
@@ -3819,7 +3969,7 @@ win_do_lines(
 	    && wp->w_width == topframe->fr_width)
     {
 	if (!no_win_do_lines_ins)
-	    screenclear();	    // will set wp->w_lines_valid to 0
+	    redraw_as_cleared();    // don't clear the screen to avoid flicker
 	return FAIL;
     }
 
@@ -3844,6 +3994,13 @@ win_do_lines(
      */
     if (!no_win_do_lines_ins)
 	clear_cmdline = TRUE;
+
+#if defined(FEAT_TABPANEL)
+    // Terminal scroll operations affect the full screen width, which would
+    // corrupt the vertical tabpanel area and cause flicker.
+    if (tabpanel_width() > 0)
+	return FAIL;
+#endif
 
     /*
      * If the terminal can set a scroll region, use that.
@@ -4417,17 +4574,20 @@ screen_del_lines(
 
 /*
  * Return TRUE when postponing displaying the mode message: when not redrawing
- * or inside a mapping.
+ * or inside a mapping or a script.
  */
     int
 skip_showmode(void)
 {
-    // Call char_avail() only when we are going to show something, because it
-    // takes a bit of time.  redrawing() may also call char_avail().
+    // Check the stuff buffer, typeahead buffer and script input for pending
+    // characters, instead of char_avail() which also reads raw terminal input
+    // and may pick up terminal response sequences (e.g. t_RV response),
+    // falsely preventing the mode from being shown.
     if (global_busy
 	    || msg_silent != 0
 	    || !redrawing()
-	    || (char_avail() && !KeyTyped))
+	    || ((!stuff_empty() || typebuf.tb_len > 0 || using_script())
+		&& !KeyTyped))
     {
 	redraw_mode = TRUE;		// show mode later
 	return TRUE;
@@ -4958,15 +5118,40 @@ fillchar_status(int *attr, win_T *wp)
 }
 
 /*
+ * Return true if the vertical separator of "wp" at screen row "row" is
+ * adjacent to the current window.  The separator is owned by "wp" and drawn
+ * at its right edge.
+ */
+    static bool
+vsep_row_is_curwin(win_T *wp, int row)
+{
+    if (wp == curwin)
+	return true;
+
+    // Check if curwin is immediately to the right of wp's separator and
+    // "row" is within curwin's row range.
+    if (curwin->w_wincol == W_ENDCOL(wp) + wp->w_vsep_width
+	    && row >= W_WINROW(curwin)
+	    && row < W_WINROW(curwin) + curwin->w_height)
+	return true;
+
+    return false;
+}
+
+/*
  * Get the character to use in a separator between vertically split windows.
  * Get its attributes in "*attr".
+ * "row" is the screen row number used to determine VertSplit or VertSplitNC.
  */
     int
-fillchar_vsep(int *attr, win_T *wp)
+fillchar_vsep(int *attr, win_T *wp, int row)
 {
     bool override_success =
 	push_highlight_overrides(wp->w_hl, wp->w_hl_len);
-    *attr = HL_ATTR(HLF_C);
+    if (vsep_row_is_curwin(wp, row))
+	*attr = HL_ATTR(HLF_C);
+    else
+	*attr = HL_ATTR(HLF_CNC);
     if (override_success)
 	pop_highlight_overrides();
 
@@ -4974,6 +5159,81 @@ fillchar_vsep(int *attr, win_T *wp)
 	return '|';
     else
 	return wp->w_fill_chars.vert;
+}
+
+/*
+ * Find the window immediately to the right of "wp"'s right separator at
+ * screen row "row".  Returns NULL if there is none.
+ */
+    static win_T *
+right_neighbor_at_row(win_T *wp, int row)
+{
+    win_T   *rn;
+    int	    rcol = W_ENDCOL(wp) + wp->w_vsep_width;
+
+    FOR_ALL_WINDOWS(rn)
+	if (rn->w_wincol == rcol
+		&& row >= W_WINROW(rn)
+		&& row < W_WINROW(rn) + rn->w_height + rn->w_status_height)
+	    return rn;
+    return NULL;
+}
+
+/*
+ * Return true if window "wn" has its status line at screen row "row".
+ */
+    static bool
+win_status_at(win_T *wn, int row)
+{
+    return wn != NULL && wn->w_status_height > 0
+	&& row >= W_WINROW(wn) + wn->w_height
+	&& row < W_WINROW(wn) + wn->w_height + wn->w_status_height;
+}
+
+/*
+ * Decide the character and highlight to draw at the separator cell on the
+ * right edge of window "wp" at screen row "row".  Returns the character via
+ * the return value and sets "*attr" to the highlight attribute.
+ *
+ * Rule:
+ * 1. If curwin is on either side of the separator at this row:
+ *    - At curwin's status line row: draw a space with StatusLine highlight
+ *      so curwin's status line extends across the separator.
+ *    - Otherwise (curwin's content row): draw the vsep char with VertSplit.
+ * 2. If curwin is not adjacent here:
+ *    - If the right neighbor has its status line at this row: draw a space
+ *      with the right neighbor's StatusLineNC.
+ *    - Else if "wp" has its status line at this row: draw a space with
+ *      wp's StatusLineNC.
+ *    - Else (both sides have content): draw the vsep char with VertSplitNC.
+ */
+    int
+sep_cell_at_row(int *attr, win_T *wp, int row)
+{
+    win_T   *rn = right_neighbor_at_row(wp, row);
+    bool    curwin_adjacent = (wp == curwin) || (rn == curwin);
+
+    if (curwin_adjacent)
+    {
+	if (win_status_at(curwin, row))
+	{
+	    (void)fillchar_status(attr, curwin);
+	    return ' ';
+	}
+	return fillchar_vsep(attr, wp, row);
+    }
+
+    if (win_status_at(rn, row))
+    {
+	(void)fillchar_status(attr, rn);
+	return ' ';
+    }
+    if (win_status_at(wp, row))
+    {
+	(void)fillchar_status(attr, wp);
+	return ' ';
+    }
+    return fillchar_vsep(attr, wp, row);
 }
 
 /*
