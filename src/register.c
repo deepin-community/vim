@@ -352,6 +352,16 @@ get_register(
 	    {
 		reg->y_array[i].string = vim_strnsave(y_current->y_array[i].string,
 					    y_current->y_array[i].length);
+		if (reg->y_array[i].string == NULL)
+		{
+		    // The allocation failed so clean up and exit
+		    while (--i >= 0)
+			vim_free(reg->y_array[i].string);
+		    vim_free(reg->y_array);
+		    vim_free(reg);
+		    return (void *)NULL;
+		}
+
 		reg->y_array[i].length = y_current->y_array[i].length;
 	    }
 	}
@@ -1083,6 +1093,7 @@ yank_do_autocmd(oparg_T *oap, yankreg_T *reg)
     list_T	    *list;
     int		    n;
     char_u	    buf[NUMBUFLEN + 2];
+    size_t	    buflen;
     long	    reglen = 0;
     save_v_event_T  save_v_event;
 
@@ -1104,7 +1115,8 @@ yank_do_autocmd(oparg_T *oap, yankreg_T *reg)
     // register name or empty string for unnamed operation
     buf[0] = (char_u)oap->regname;
     buf[1] = NUL;
-    (void)dict_add_string(v_event, "regname", buf);
+    buflen = (buf[0] == NUL) ? 0 : 1;
+    (void)dict_add_string_len(v_event, "regname", buf, (int)buflen);
 
     // motion type: inclusive or exclusive
     (void)dict_add_bool(v_event, "inclusive", oap->inclusive);
@@ -1113,21 +1125,32 @@ yank_do_autocmd(oparg_T *oap, yankreg_T *reg)
     buf[0] = get_op_char(oap->op_type);
     buf[1] = get_extra_op_char(oap->op_type);
     buf[2] = NUL;
-    (void)dict_add_string(v_event, "operator", buf);
+    buflen = (buf[0] == NUL) ? 0 : (buf[1] == NUL) ? 1 : 2;
+    (void)dict_add_string_len(v_event, "operator", buf, (int)buflen);
 
     // register type
-    buf[0] = NUL;
-    buf[1] = NUL;
     switch (get_reg_type(oap->regname, &reglen))
     {
-	case MLINE: buf[0] = 'V'; break;
-	case MCHAR: buf[0] = 'v'; break;
+	case MLINE:
+	    buf[0] = 'V';
+	    buf[1] = NUL;
+	    buflen = 1;
+	    break;
+	case MCHAR:
+	    buf[0] = 'v';
+	    buf[1] = NUL;
+	    buflen = 1;
+	    break;
 	case MBLOCK:
-		vim_snprintf((char *)buf, sizeof(buf), "%c%ld", Ctrl_V,
-			     reglen + 1);
-		break;
+	    buflen = vim_snprintf_safelen((char *)buf, sizeof(buf),
+		"%c%ld", Ctrl_V, reglen + 1);
+	    break;
+	default:
+	    buf[0] = NUL;
+	    buflen = 0;
+	    break;
     }
-    (void)dict_add_string(v_event, "regtype", buf);
+    (void)dict_add_string_len(v_event, "regtype", buf, (int)buflen);
 
     // selection type - visual or not
     (void)dict_add_bool(v_event, "visual", oap->is_VIsual);
@@ -1855,9 +1878,9 @@ do_put(
 	if (dir == FORWARD && c != NUL)
 	{
 	    if (cur_ve_flags == VE_ALL)
-		getvcol(curwin, &curwin->w_cursor, &col, NULL, &endcol2);
+		getvcol(curwin, &curwin->w_cursor, &col, NULL, &endcol2, 0);
 	    else
-		getvcol(curwin, &curwin->w_cursor, NULL, NULL, &col);
+		getvcol(curwin, &curwin->w_cursor, NULL, NULL, &col, 0);
 
 	    if (has_mbyte)
 		// move to start of next multi-byte character
@@ -1868,7 +1891,7 @@ do_put(
 	    ++col;
 	}
 	else
-	    getvcol(curwin, &curwin->w_cursor, &col, NULL, &endcol2);
+	    getvcol(curwin, &curwin->w_cursor, &col, NULL, &endcol2, 0);
 
 	col += curwin->w_cursor.coladd;
 	if (cur_ve_flags == VE_ALL
@@ -2021,7 +2044,7 @@ do_put(
 		curwin->w_cursor.col += bd.startspaces;
 	}
 
-	changed_lines(lnum, 0, curwin->w_cursor.lnum, nr_lines);
+	changed_lines(lnum, 0, curwin->w_cursor.lnum - nr_lines, nr_lines);
 
 	// Set '[ mark.
 	curbuf->b_op_start = curwin->w_cursor;
@@ -2112,7 +2135,7 @@ do_put(
 		    pos.lnum = lnum;
 		    pos.col = col;
 		    pos.coladd = 0;
-		    getvcol(curwin, &pos, NULL, &vcol, NULL);
+		    getvcol(curwin, &pos, NULL, &vcol, NULL, 0);
 		}
 	    }
 
@@ -2365,7 +2388,7 @@ error:
     }
 
     msgmore(nr_lines);
-    curwin->w_set_curswant = TRUE;
+    curwin->w_set_curswant = true;
 
     // Make sure the cursor is not after the NUL.
     int len = ml_get_curline_len();

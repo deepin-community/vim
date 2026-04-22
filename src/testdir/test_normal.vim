@@ -1196,6 +1196,31 @@ func Test_normal17_z_scroll_hor2()
   bw!
 endfunc
 
+func Test_large_sidescrolloff_no_overflow()
+  10new
+  20vsp
+  setlocal nowrap sidescrolloff=2147483647
+  call setline(1, repeat('a', 40))
+
+  normal! $
+  redraw!
+  call assert_equal(29, winsaveview().leftcol)
+
+  normal! zs
+  redraw!
+  call assert_equal(29, winsaveview().leftcol)
+
+  normal! ze
+  redraw!
+  call assert_equal(29, winsaveview().leftcol)
+
+  normal! 0
+  redraw!
+  call assert_equal(0, winsaveview().leftcol)
+
+  bw!
+endfunc
+
 " Test for commands that scroll the window horizontally. Test with folds.
 "   H, M, L, CTRL-E, CTRL-Y, CTRL-U, CTRL-D, PageUp, PageDown commands
 func Test_vert_scroll_cmds()
@@ -4269,6 +4294,20 @@ func Test_single_line_filler_zb()
   bw!
 endfunc
 
+" Test for zb with fewer buffer lines than window height, non-zero 'scrolloff'
+" and cursor on fold.
+func Test_zb_with_cursor_on_fold()
+  15new
+  call setline(1, range(1, 5) + ['', 'foo{{{', 'bar}}}', '', 'baz'])
+  setlocal foldmethod=marker scrolloff=1
+  call assert_equal(8, foldclosedend(7))
+  call cursor(7, 1)
+  normal! zb
+  call assert_equal(1, line('w0'))
+
+  bwipe!
+endfunc
+
 " Test for Ctrl-U not getting stuck at end of buffer with 'scrolloff'.
 func Test_halfpage_scrolloff_eob()
   set scrolloff=5
@@ -4420,6 +4459,7 @@ endfunc
 "
 " The problem occurred because WM_SETFOCUS was processed slowly, and typebuf
 " was not empty when it should have been.
+" TODO: Is this test flaky?
 func Test_win32_gui_setfocus_prevent_showcmd()
   if !has('win32') || !has('gui_running')
     throw 'Skipped: Windows GUI regression test'

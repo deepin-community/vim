@@ -364,9 +364,10 @@ typedef enum {
 #define STL_USER_HL	'*'		// highlight from (User)1..9 or 0
 #define STL_HIGHLIGHT	'#'		// highlight name
 #define STL_LINEBREAK	'@'		// insert a line break
+#define STL_CLICKFUNC	'['		// click handler region
 #define STL_TABPAGENR	'T'		// tab page label nr
 #define STL_TABCLOSENR	'X'		// tab page close nr
-#define STL_ALL		((char_u *) "fFtcvVlLknoObBrRhHmYyWwMqpPaNS{#@")
+#define STL_ALL		((char_u *) "fFtcvVlLknoObBrRhHmYyWwMqpPaNS{#@[")
 
 // flags used for parsed 'wildmode'
 #define WIM_FULL	0x01
@@ -556,6 +557,7 @@ EXTERN long	p_ph;		// 'pumheight'
 EXTERN long	p_pw;		// 'pumwidth'
 EXTERN long	p_pmw;		// 'pummaxwidth'
 EXTERN char_u	*p_pb;		// 'pumborder'
+EXTERN char_u	*p_pumopt;	// 'pumopt'
 EXTERN char_u	*p_com;		// 'comments'
 EXTERN char_u	*p_cpo;		// 'cpoptions'
 #ifdef FEAT_CSCOPE
@@ -805,6 +807,7 @@ EXTERN char_u	*p_msm;		// 'mkspellmem'
 EXTERN int	p_ml;		// 'modeline'
 EXTERN int	p_mle;		// 'modelineexpr'
 EXTERN long	p_mls;		// 'modelines'
+EXTERN int	p_mlstr;	// 'modelinestrict'
 EXTERN int	p_ma;		// 'modifiable'
 EXTERN int	p_mod;		// 'modified'
 EXTERN char_u	*p_mouse;	// 'mouse'
@@ -898,6 +901,7 @@ EXTERN long	p_sj;		// 'scrolljump'
 EXTERN int	p_scf;		// 'scrollfocus'
 #endif
 EXTERN long	p_so;		// 'scrolloff'
+EXTERN long	p_sop;		// 'scrolloffpad'
 EXTERN char_u	*p_sbo;		// 'scrollopt'
 EXTERN char_u	*p_sections;	// 'sections'
 EXTERN int	p_secure;	// 'secure'
@@ -1150,9 +1154,6 @@ EXTERN long	p_wmw;		// 'winminwidth'
 EXTERN long	p_wiw;		// 'winwidth'
 #ifdef FEAT_WAYLAND
 EXTERN char_u	*p_wse;		// 'wlseat'
-# ifdef FEAT_WAYLAND_CLIPBOARD_FS
-EXTERN int	p_wst;		// 'wlsteal'
-# endif
 EXTERN long     p_wtm;		// 'wltimeoutlen'
 #endif
 #if defined(MSWIN) && defined(FEAT_TERMINAL)
@@ -1375,6 +1376,7 @@ enum
     , WV_SMS
     , WV_SISO
     , WV_SO
+    , WV_SOP
 #ifdef FEAT_SPELL
     , WV_SPELL
 #endif

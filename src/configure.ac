@@ -2238,6 +2238,8 @@ if test "$enable_channel" = "yes"; then
 	AC_CHECK_LIB(network, socket)
   else
 	AC_CHECK_LIB(socket, socket)
+	dnl On Solaris we need the nsl library.
+	AC_CHECK_LIB(nsl, gethostbyname)
   fi
 
   AC_CACHE_CHECK([whether compiling with IPv6 networking is possible], [vim_cv_ipv6_networking],
@@ -2274,8 +2276,6 @@ if test "$enable_channel" = "yes"; then
     AC_DEFINE(FEAT_IPV6)
     AC_CHECK_FUNCS(inet_ntop)
   else
-    dnl On Solaris we need the nsl library.
-    AC_CHECK_LIB(nsl, gethostbyname)
     AC_CACHE_CHECK([whether compiling with IPv4 networking is possible], [vim_cv_ipv4_networking],
       [AC_LINK_IFELSE([AC_LANG_PROGRAM([
 #include <stdio.h>
@@ -2461,18 +2461,6 @@ if test "$with_wayland" = yes; then
   if "$PKG_CONFIG" --exists 'wayland-client'; then
     AC_MSG_RESULT([yes])
 
-    AC_MSG_CHECKING(--enable-wayland-focus-steal argument)
-    AC_ARG_ENABLE(wayland-focus-steal,
-		  [AS_HELP_STRING([--enable-wayland-focus-steal],
-                          [Include focus stealing support for Wayland clipboard.])],
-		  [enable_wayland_fs=$enableval],
-		  enable_wayland_fs="yes")
-
-    AS_IF([test "$enable_wayland_fs" = "yes"],
-          [AC_MSG_RESULT([yes])
-          AC_DEFINE(FEAT_WAYLAND_CLIPBOARD_FS)],
-          [AC_MSG_RESULT([no])])
-
     AC_DEFINE(HAVE_WAYLAND)
     WAYLAND_CPPFLAGS=`$PKG_CONFIG --cflags-only-I wayland-client`
     WAYLAND_CFLAGS=`$PKG_CONFIG --cflags-only-other wayland-client`
@@ -2487,14 +2475,6 @@ if test "$with_wayland" = yes; then
       objects/wlr-data-control-unstable-v1.o \
       objects/ext-data-control-v1.o \
       objects/wayland.o"
-
-    AS_IF([test "$enable_wayland_fs" = "yes"],
-          [AS_VAR_APPEND([WAYLAND_SRC], " \
-            auto/wayland/xdg-shell.c \
-            auto/wayland/primary-selection-unstable-v1.c")
-           AS_VAR_APPEND([WAYLAND_OBJ], " \
-            objects/xdg-shell.o \
-            objects/primary-selection-unstable-v1.o")])
 
     AC_SUBST(WAYLAND_CPPFLAGS)
     AC_SUBST(WAYLAND_CFLAGS)

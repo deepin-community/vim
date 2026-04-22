@@ -2734,7 +2734,7 @@ ex_errmsg(char *msg, char_u *arg)
  * The "+" string used in place of an empty command in Ex mode.
  * This string is used in pointer comparison.
  */
-static char exmode_plus[] = "+";
+static const char exmode_plus[] = "+";
 
 /*
  * Handle a range without a command.
@@ -7917,7 +7917,7 @@ ex_syncbind(exarg_T *eap UNUSED)
 	    curwin->w_scbind_pos = topline;
 	    redraw_later(UPD_VALID);
 	    cursor_correct();
-	    curwin->w_redr_status = TRUE;
+	    curwin->w_redr_status = true;
 	}
     }
     curwin = save_curwin;
@@ -8366,7 +8366,7 @@ do_sleep(long msec, int hide_cursor)
 	// actual time passed
 	done = ELAPSED_FUNC(start_tv);
 #else
-	// guestimate time passed (will actually be more)
+	// guesstimate time passed (will actually be more)
 	done += wait_now;
 #endif
     }
@@ -9016,6 +9016,7 @@ ex_redrawstatus(exarg_T *eap UNUSED)
 	status_redraw_all();
     else
 	status_redraw_curbuf();
+    redraw_vseps = TRUE;
     if (msg_scrolled && (State & MODE_CMDLINE))
 	return;  // redraw later
 
@@ -10367,7 +10368,7 @@ ex_setfiletype(exarg_T *eap)
 
     set_option_value_give_err((char_u *)"filetype", 0L, arg, OPT_LOCAL);
     if (arg != eap->arg)
-	curbuf->b_did_filetype = FALSE;
+	curbuf->b_did_filetype = false;
 }
 
     static void

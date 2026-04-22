@@ -946,7 +946,7 @@ compile_load(
 		case 'g': if (vim_strchr(name, AUTOLOAD_CHAR) == NULL)
 			  {
 			      if (is_expr && ASCII_ISUPPER(*name)
-				       && (find_func(name, FALSE) != NULL
+				       && (find_func(name, TRUE) != NULL
 					   || gfatab.gfat_args.ga_len > 0))
 				  res = generate_funcref(cctx, name, &gfatab,
 								TRUE);
@@ -2568,6 +2568,13 @@ compile_subscript(
 		return FAIL;
 	    ppconst->pp_is_const = FALSE;
 
+	    type = get_type_on_stack(cctx, 0);
+	    if (type->tt_type == VAR_VOID)
+	    {
+		emsg(_(e_cannot_use_void_value));
+		return FAIL;
+	    }
+
 	    // Apply the '!', '-' and '+' first:
 	    //   -1.0->func() works like (-1.0)->func()
 	    if (compile_leader(cctx, TRUE, start_leader, end_leader) == FAIL)
@@ -3355,7 +3362,7 @@ compile_expr6(char_u **arg, cctx_T *cctx, ppconst_T *ppconst)
 		char_u *s2 = tv2->vval.v_string;
 		size_t len1 = STRLEN(s1);
 
-		tv1->vval.v_string = alloc((int)(len1 + STRLEN(s2) + 1));
+		tv1->vval.v_string = alloc(len1 + STRLEN(s2) + 1);
 		if (tv1->vval.v_string == NULL)
 		{
 		    clear_ppconst(ppconst);

@@ -212,7 +212,7 @@ update_screen(int type_arg)
 			    wp->w_redr_type = UPD_NOT_VALID;
 			    if (W_WINROW(wp) + wp->w_height
 					 + wp->w_status_height <= msg_scrolled)
-				wp->w_redr_status = TRUE;
+				wp->w_redr_status = true;
 			}
 		    }
 		}
@@ -371,10 +371,20 @@ update_screen(int type_arg)
     pum_will_redraw = save_pum_will_redraw;
     pum_may_redraw();
 
+    // Redraw vertical separators to update VertSplit/VertSplitNC highlights
+    // when the current window has changed.
+    if (redraw_vseps)
+    {
+	redraw_vseps = FALSE;
+	FOR_ALL_WINDOWS(wp)
+	    if (wp->w_vsep_width > 0)
+		draw_vsep_win(wp, 0);
+    }
+
     // Reset b_mod_set flags.  Going through all windows is probably faster
     // than going through all buffers (there could be many buffers).
     FOR_ALL_WINDOWS(wp)
-	wp->w_buffer->b_mod_set = FALSE;
+	wp->w_buffer->b_mod_set = false;
 
 #ifdef FEAT_PROP_POPUP
     // Display popup windows on top of the windows and command line.
@@ -479,7 +489,7 @@ win_redr_status(win_T *wp, int ignore_pum UNUSED)
 
     row = statusline_row(wp);
 
-    wp->w_redr_status = FALSE;
+    wp->w_redr_status = false;
     if (wp->w_status_height == 0)
     {
 	// no status line, can only be last window
@@ -491,7 +501,7 @@ win_redr_status(win_T *wp, int ignore_pum UNUSED)
 	    || (!ignore_pum && pum_visible()))
     {
 	// Don't redraw right now, do it later.
-	wp->w_redr_status = TRUE;
+	wp->w_redr_status = true;
     }
 #ifdef FEAT_STL_OPT
     else if (*p_stl != NUL || *wp->w_p_stl != NUL)
@@ -600,12 +610,12 @@ win_redr_status(win_T *wp, int ignore_pum UNUSED)
      */
     if (wp->w_vsep_width != 0 && wp->w_status_height != 0 && redrawing())
     {
-	if (stl_connected(wp))
-	    fillchar = fillchar_status(&attr, wp);
-	else
-	    fillchar = fillchar_vsep(&attr, wp);
 	for (i = 0; i < wp->w_status_height; i++)
-	    screen_putchar(fillchar, row + i, W_ENDCOL(wp), attr);
+	{
+	    int r = row + i;
+	    fillchar = sep_cell_at_row(&attr, wp, r);
+	    screen_putchar(fillchar, r, W_ENDCOL(wp), attr);
+	}
     }
     busy = FALSE;
 }
@@ -643,7 +653,7 @@ showruler(int always)
     if (pum_visible())
     {
 	// Don't redraw right now, do it later.
-	curwin->w_redr_status = TRUE;
+	curwin->w_redr_status = true;
 	return;
     }
 #if defined(FEAT_STL_OPT)
@@ -769,7 +779,7 @@ win_redr_ruler(win_T *wp, int always, int ignore_pum)
 	if (wp->w_p_list && wp->w_lcs_chars.tab1 == NUL)
 	{
 	    wp->w_p_list = FALSE;
-	    getvvcol(wp, &wp->w_cursor, NULL, &virtcol, NULL);
+	    getvvcol(wp, &wp->w_cursor, NULL, &virtcol, NULL, 0);
 	    wp->w_p_list = TRUE;
 	}
 
@@ -1432,7 +1442,7 @@ fold_line(
     {
 	curwin->w_cline_row = row;
 	curwin->w_cline_height = 1;
-	curwin->w_cline_folded = TRUE;
+	curwin->w_cline_folded = true;
 	curwin->w_valid |= (VALID_CHEIGHT|VALID_CROW);
     }
 
@@ -1553,7 +1563,7 @@ win_update(win_T *wp)
 
     if (type == UPD_NOT_VALID)
     {
-	wp->w_redr_status = TRUE;
+	wp->w_redr_status = true;
 	wp->w_lines_valid = 0;
     }
 
@@ -2078,17 +2088,10 @@ win_update(win_T *wp)
 	    if (VIsual_mode == Ctrl_V)
 	    {
 		colnr_T	    fromc, toc;
-#if defined(FEAT_LINEBREAK)
-		int	    save_ve_flags = curwin->w_ve_flags;
 
-		if (curwin->w_p_lbr)
-		    curwin->w_ve_flags = VE_ALL;
-#endif
-		getvcols(wp, &VIsual, &curwin->w_cursor, &fromc, &toc);
+		getvcols(wp, &VIsual, &curwin->w_cursor, &fromc, &toc,
+							 GETVCOL_END_EXCL_LBR);
 		++toc;
-#if defined(FEAT_LINEBREAK)
-		curwin->w_ve_flags = save_ve_flags;
-#endif
 		// Highlight to the end of the line, unless 'virtualedit' has
 		// "block".
 		if (curwin->w_curswant == MAXCOL)
@@ -2110,7 +2113,7 @@ win_update(win_T *wp)
 			    colnr_T t;
 
 			    pos.col = (int)ml_get_buf_len(wp->w_buffer, pos.lnum);
-			    getvvcol(wp, &pos, NULL, NULL, &t);
+			    getvvcol(wp, &pos, NULL, NULL, &t, 0);
 			    if (toc < t)
 				toc = t;
 			}
@@ -2843,13 +2846,13 @@ win_update(win_T *wp)
 	    if (wp->w_redr_type != 0)
 	    {
 		// Don't update for changes in buffer again.
-		i = curbuf->b_mod_set;
-		curbuf->b_mod_set = FALSE;
+		bool b = curbuf->b_mod_set;
+		curbuf->b_mod_set = false;
 		j = curbuf->b_mod_xlines;
 		curbuf->b_mod_xlines = 0;
 		curs_columns(TRUE);
 		win_update(curwin);
-		curbuf->b_mod_set = i;
+		curbuf->b_mod_set = b;
 		curbuf->b_mod_xlines = j;
 	    }
 	    // Other windows might have w_redr_type raised in update_topline().
@@ -3367,7 +3370,7 @@ redraw_buf_and_status_later(buf_T *buf, int type)
 	if (wp->w_buffer == buf)
 	{
 	    redraw_win_later(wp, type);
-	    wp->w_redr_status = TRUE;
+	    wp->w_redr_status = true;
 	}
     }
 }
@@ -3384,7 +3387,7 @@ status_redraw_all(void)
     FOR_ALL_WINDOWS(wp)
 	if (wp->w_status_height)
 	{
-	    wp->w_redr_status = TRUE;
+	    wp->w_redr_status = true;
 	    redraw_later(UPD_VALID);
 	}
 }
@@ -3400,7 +3403,7 @@ status_redraw_curbuf(void)
     FOR_ALL_WINDOWS(wp)
 	if (wp->w_status_height != 0 && wp->w_buffer == curbuf)
 	{
-	    wp->w_redr_status = TRUE;
+	    wp->w_redr_status = true;
 	    redraw_later(UPD_VALID);
 	}
 }
@@ -3421,6 +3424,13 @@ redraw_statuslines(void)
 	    if (ret)
 		pop_highlight_overrides();
 	}
+    if (redraw_vseps)
+    {
+	redraw_vseps = FALSE;
+	FOR_ALL_WINDOWS(wp)
+	    if (wp->w_vsep_width > 0)
+		draw_vsep_win(wp, 0);
+    }
     if (redraw_tabline)
 	draw_tabline();
 
@@ -3437,7 +3447,7 @@ redraw_statuslines(void)
 win_redraw_last_status(frame_T *frp)
 {
     if (frp->fr_layout == FR_LEAF)
-	frp->fr_win->w_redr_status = TRUE;
+	frp->fr_win->w_redr_status = true;
     else if (frp->fr_layout == FR_ROW)
     {
 	FOR_ALL_FRAMES(frp, frp->fr_child)

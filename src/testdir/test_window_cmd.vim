@@ -284,7 +284,7 @@ func Test_window_split_no_room()
   call setwinvar(winnr('k'), '&statusline', '@#')
   let last_stl_row = win_screenpos(0)[0] - 1
   redraw
-  call assert_equal('@#|', GetScreenStr(last_stl_row))
+  call assert_equal('@# ', GetScreenStr(last_stl_row))
   call assert_equal('~ |', GetScreenStr(&lines - &cmdheight))
 
   call assert_fails('wincmd H', 'E36:')
@@ -292,7 +292,7 @@ func Test_window_split_no_room()
   call assert_equal(info, s:win_layout_info())
   call setwinvar(winnr('k'), '&statusline', '=-')
   redraw
-  call assert_equal('=-|', GetScreenStr(last_stl_row))
+  call assert_equal('=- ', GetScreenStr(last_stl_row))
   call assert_equal('~ |', GetScreenStr(&lines - &cmdheight))
 
   %bw!
@@ -2494,6 +2494,31 @@ func Test_laststatus_vsplit_row_height_mixed_stlo_reversed()
   let buf = RunVimInTerminal('-S XTestLaststatusVsplitRowHeight3', #{rows: 8})
   call VerifyScreenDump(buf, 'Test_laststatus_vsplit_row_height3_1', {})
   call StopVimInTerminal(buf)
+endfunc
+
+func Test_window_w_locked_bypass()
+  split Xfoo
+  let s:win = win_getid()
+
+  augroup TestBypass
+    " :quit fired this with w_locked set.  Shouldn't be able to unset w_locked
+    " and close s:win if we do other stuff that also sets it.
+    au WinLeave * ++once call assert_equal(s:win, win_getid())
+                      \| quit | call assert_notequal(0, win_id2win(s:win))
+                      \| args Xbar
+                      \| argadd Xbaz
+                      \| edit Xbaz-but-cooler
+                      \| quit | call assert_notequal(0, win_id2win(s:win))
+  augroup END
+  quit
+  call assert_equal(1, bufexists('Xbaz-but-cooler')) " check WinLeave ran
+
+  unlet! s:win
+  augroup TestBypass
+    au!
+  augroup END
+  %argd!
+  %bw!
 endfunc
 
 " vim: shiftwidth=2 sts=2 expandtab

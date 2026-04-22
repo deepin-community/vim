@@ -1475,6 +1475,9 @@ func Ch_close_handle(port)
   let s:channelfd = ch_open(s:address(a:port), s:chopt)
   call ch_sendexpr(s:channelfd, "test", {'callback': function('Ch_CloseHandler')})
   call WaitForAssert({-> assert_equal('what?', g:Ch_unletResponse)})
+  " Wait for the channel to be fully closed, so that the callback does not
+  " fire during the next test.
+  call WaitForAssert({-> assert_equal('closed', ch_status(s:channelfd))})
 endfunc
 
 func Test_close_handle()
@@ -2760,15 +2763,22 @@ endfunc
 
 let g:server_received_addr = ''
 let g:server_received_msg = ''
+let g:server_received_input = ''
+
+func s:test_listen_input(ch, msg)
+    let g:server_received_input = a:msg
+endfunc
 
 func s:test_listen_accept(ch, addr)
     let g:server_received_addr = a:addr
     let g:server_received_msg = ch_readraw(a:ch)
+
+    call ch_setoptions(a:ch, #{mode: "raw", callback: function('s:test_listen_input')})
 endfunction
 
 func Test_listen()
     call ch_log('Test_listen()')
-    let server = ch_listen('127.0.0.1:12345', {'callback': function('s:test_listen_accept')})
+    let server = ch_listen('12345', {'callback': function('s:test_listen_accept')})
     if ch_status(server) == 'fail'
         call assert_report("Can't listen channel")
         return
@@ -2779,42 +2789,46 @@ func Test_listen()
         return
     endif
     call ch_sendraw(handle, 'hello')
-    call WaitFor('"" != g:server_received_msg')
+    call WaitFor('"hello" == g:server_received_msg')
+    call ch_sendraw(handle, 'notify')
+    call WaitFor('"notify" == g:server_received_input')
+
     call ch_close(handle)
     call ch_close(server)
     call assert_equal('hello', g:server_received_msg)
     call assert_match('127.0.0.1:', g:server_received_addr)
 endfunc
 
-func Test_listen_invalid_address()
-    call ch_log('Test_listen_invalid_address()')
-
-    " empty address
-    call assert_fails("call ch_listen('')", 'E475:')
+func Test_listen_invalid_argument()
+    call ch_log('Test_listen_invalid_argument()')
 
     " missing port
-    call assert_fails("call ch_listen('localhost')", 'E475:')
+    call assert_fails("call ch_listen('')", 'E475:')
 
     " port number too large
-    call assert_fails("call ch_listen('localhost:99999')", 'E475:')
+    call assert_fails("call ch_listen('99999')", 'E475:')
 
     " port number zero should let the OS assign an available port
-    let ch = ch_listen('localhost:0')
+    let ch = ch_listen('0')
     call assert_equal('open', ch_status(ch))
     call assert_notequal(0, ch_info(ch).port)
     call ch_close(ch)
 
     " port number negative
-    call assert_fails("call ch_listen('localhost:-1')", 'E475:')
+    call assert_fails("call ch_listen('-1')", 'E475:')
 
-    " invalid ipv6 format (missing closing bracket)
-    call assert_fails("call ch_listen('[::1:8765')", 'E475:')
-
-    " invalid ipv6 format (missing port)
+    " make sure we don't accept hostname/IP address
+    call assert_fails("call ch_listen('127.0.0.1:4500')", 'E475:')
+    call assert_fails("call ch_listen('127.0.0.1')", 'E475:')
+    call assert_fails("call ch_listen('localhost:4500')", 'E475:')
+    call assert_fails("call ch_listen('localhost')", 'E475:')
     call assert_fails("call ch_listen('[::1]')", 'E475:')
+endfunc
 
-    " TODO: IPv6 should actually work
-    call assert_fails("call ch_listen('[::1]:9999')", 'E1574:')
+func Test_listen_info_no_hostname()
+    let ch = ch_listen('0')
+    call assert_fails("call ch_info(ch).hostname", 'E716:')
+    call ch_close(ch)
 endfunc
 
 func Test_channel_lsp_mode()
@@ -2917,6 +2931,27 @@ func Test_error_callback_terminal()
   delfunc s:Out
   delfunc s:Err
   unlet! g:out g:error
+endfunc
+
+" Verify that term_start() with out_cb/err_cb delivers one line per callback
+" call (no embedded newlines, no trailing CR), matching the user's expectation.
+func Test_term_start_cb_per_line()
+  CheckUnix
+  CheckFeature terminal
+  let g:Ch_msgs = []
+  let script_file = 'Xterm_cb_per_line.sh'
+  call writefile(["#!/bin/sh",
+        \         "printf 'err:1\\nerr:2\\n' >&2",
+        \         "printf 'out:3\\n'"], script_file, 'D')
+  call setfperm(script_file, 'rwxr-xr-x')
+  let ptybuf = term_start('./' .. script_file, {
+        \ 'out_cb': {ch, msg -> add(g:Ch_msgs, msg)},
+        \ 'err_cb': {ch, msg -> add(g:Ch_msgs, msg)}})
+  call WaitForAssert({-> assert_equal(3, len(g:Ch_msgs))}, 5000)
+  " Each line must arrive as a separate callback call with no embedded CR/NL.
+  call assert_equal(['err:1', 'err:2', 'out:3'], g:Ch_msgs)
+  call job_stop(term_getjob(ptybuf))
+  unlet g:Ch_msgs
 endfunc
 
 " vim: shiftwidth=2 sts=2 expandtab

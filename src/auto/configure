@@ -858,7 +858,6 @@ enable_farsi
 enable_xim
 enable_fontset
 with_wayland
-enable_wayland_focus_steal
 with_x
 enable_gui
 enable_gtk2_check
@@ -1539,9 +1538,6 @@ Optional Features:
   --disable-farsi         Deprecated.
   --enable-xim            Include XIM input support.
   --enable-fontset        Include X fontset output support.
-  --enable-wayland-focus-steal
-                          Include focus stealing support for Wayland
-                          clipboard.
   --enable-gui=OPTS       X11 GUI. default=auto OPTS=auto/no/gtk2/gnome2/gtk3/motif/haiku/photon/carbon
   --enable-gtk2-check     If auto-select GUI, check for GTK+ 2 default=yes
   --enable-gnome-check    If GTK GUI, check for GNOME default=no
@@ -8822,6 +8818,57 @@ then :
 
 fi
 
+		{ printf "%s\n" "$as_me:${as_lineno-$LINENO}: checking for gethostbyname in -lnsl" >&5
+printf %s "checking for gethostbyname in -lnsl... " >&6; }
+if test ${ac_cv_lib_nsl_gethostbyname+y}
+then :
+  printf %s "(cached) " >&6
+else case e in #(
+  e) ac_check_lib_save_LIBS=$LIBS
+LIBS="-lnsl  $LIBS"
+cat confdefs.h - <<_ACEOF >conftest.$ac_ext
+/* end confdefs.h.  */
+
+/* Override any GCC internal prototype to avoid an error.
+   Use char because int might match the return type of a GCC
+   builtin and then its argument prototype would still apply.
+   The 'extern "C"' is for builds by C++ compilers;
+   although this is not generally supported in C code supporting it here
+   has little cost and some practical benefit (sr 110532).  */
+#ifdef __cplusplus
+extern "C"
+#endif
+char gethostbyname (void);
+int
+main (void)
+{
+return gethostbyname ();
+  ;
+  return 0;
+}
+_ACEOF
+if ac_fn_c_try_link "$LINENO"
+then :
+  ac_cv_lib_nsl_gethostbyname=yes
+else case e in #(
+  e) ac_cv_lib_nsl_gethostbyname=no ;;
+esac
+fi
+rm -f core conftest.err conftest.$ac_objext conftest.beam \
+    conftest$ac_exeext conftest.$ac_ext
+LIBS=$ac_check_lib_save_LIBS ;;
+esac
+fi
+{ printf "%s\n" "$as_me:${as_lineno-$LINENO}: result: $ac_cv_lib_nsl_gethostbyname" >&5
+printf "%s\n" "$ac_cv_lib_nsl_gethostbyname" >&6; }
+if test "x$ac_cv_lib_nsl_gethostbyname" = xyes
+then :
+  printf "%s\n" "#define HAVE_LIBNSL 1" >>confdefs.h
+
+  LIBS="-lnsl $LIBS"
+
+fi
+
   fi
 
   { printf "%s\n" "$as_me:${as_lineno-$LINENO}: checking whether compiling with IPv6 networking is possible" >&5
@@ -8891,57 +8938,6 @@ then :
 fi
 
   else
-        { printf "%s\n" "$as_me:${as_lineno-$LINENO}: checking for gethostbyname in -lnsl" >&5
-printf %s "checking for gethostbyname in -lnsl... " >&6; }
-if test ${ac_cv_lib_nsl_gethostbyname+y}
-then :
-  printf %s "(cached) " >&6
-else case e in #(
-  e) ac_check_lib_save_LIBS=$LIBS
-LIBS="-lnsl  $LIBS"
-cat confdefs.h - <<_ACEOF >conftest.$ac_ext
-/* end confdefs.h.  */
-
-/* Override any GCC internal prototype to avoid an error.
-   Use char because int might match the return type of a GCC
-   builtin and then its argument prototype would still apply.
-   The 'extern "C"' is for builds by C++ compilers;
-   although this is not generally supported in C code supporting it here
-   has little cost and some practical benefit (sr 110532).  */
-#ifdef __cplusplus
-extern "C"
-#endif
-char gethostbyname (void);
-int
-main (void)
-{
-return gethostbyname ();
-  ;
-  return 0;
-}
-_ACEOF
-if ac_fn_c_try_link "$LINENO"
-then :
-  ac_cv_lib_nsl_gethostbyname=yes
-else case e in #(
-  e) ac_cv_lib_nsl_gethostbyname=no ;;
-esac
-fi
-rm -f core conftest.err conftest.$ac_objext conftest.beam \
-    conftest$ac_exeext conftest.$ac_ext
-LIBS=$ac_check_lib_save_LIBS ;;
-esac
-fi
-{ printf "%s\n" "$as_me:${as_lineno-$LINENO}: result: $ac_cv_lib_nsl_gethostbyname" >&5
-printf "%s\n" "$ac_cv_lib_nsl_gethostbyname" >&6; }
-if test "x$ac_cv_lib_nsl_gethostbyname" = xyes
-then :
-  printf "%s\n" "#define HAVE_LIBNSL 1" >>confdefs.h
-
-  LIBS="-lnsl $LIBS"
-
-fi
-
     { printf "%s\n" "$as_me:${as_lineno-$LINENO}: checking whether compiling with IPv4 networking is possible" >&5
 printf %s "checking whether compiling with IPv4 networking is possible... " >&6; }
 if test ${vim_cv_ipv4_networking+y}
@@ -9268,30 +9264,6 @@ printf %s "checking for wayland... " >&6; }
     { printf "%s\n" "$as_me:${as_lineno-$LINENO}: result: yes" >&5
 printf "%s\n" "yes" >&6; }
 
-    { printf "%s\n" "$as_me:${as_lineno-$LINENO}: checking --enable-wayland-focus-steal argument" >&5
-printf %s "checking --enable-wayland-focus-steal argument... " >&6; }
-    # Check whether --enable-wayland-focus-steal was given.
-if test ${enable_wayland_focus_steal+y}
-then :
-  enableval=$enable_wayland_focus_steal; enable_wayland_fs=$enableval
-else case e in #(
-  e) enable_wayland_fs="yes" ;;
-esac
-fi
-
-
-    if test "$enable_wayland_fs" = "yes"
-then :
-  { printf "%s\n" "$as_me:${as_lineno-$LINENO}: result: yes" >&5
-printf "%s\n" "yes" >&6; }
-          printf "%s\n" "#define FEAT_WAYLAND_CLIPBOARD_FS 1" >>confdefs.h
-
-else case e in #(
-  e) { printf "%s\n" "$as_me:${as_lineno-$LINENO}: result: no" >&5
-printf "%s\n" "no" >&6; } ;;
-esac
-fi
-
     printf "%s\n" "#define HAVE_WAYLAND 1" >>confdefs.h
 
     WAYLAND_CPPFLAGS=`$PKG_CONFIG --cflags-only-I wayland-client`
@@ -9307,16 +9279,6 @@ fi
       objects/wlr-data-control-unstable-v1.o \
       objects/ext-data-control-v1.o \
       objects/wayland.o"
-
-    if test "$enable_wayland_fs" = "yes"
-then :
-  as_fn_append WAYLAND_SRC " \
-            auto/wayland/xdg-shell.c \
-            auto/wayland/primary-selection-unstable-v1.c"
-           as_fn_append WAYLAND_OBJ " \
-            objects/xdg-shell.o \
-            objects/primary-selection-unstable-v1.o"
-fi
 
 
 

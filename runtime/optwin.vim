@@ -1,7 +1,7 @@
 " These commands create the option window.
 "
 " Maintainer:	The Vim Project <https://github.com/vim/vim>
-" Last Change:	2026 Mar 11
+" Last Change:	2026 Apr 21
 " Former Maintainer:	Bram Moolenaar <Bram@vim.org>
 
 " If there already is an option window, jump to that one.
@@ -351,6 +351,8 @@ call append("$", "\t" .. s:local_to_window)
 call <SID>BinOptionL("sms")
 call <SID>AddOption("scrolloff", gettext("number of screen lines to show around the cursor"))
 call append("$", " \tset so=" . &so)
+call <SID>AddOption("scrolloffpad", gettext("vertically center cursor even at end of file"))
+call append("$", " \tset sop=" . &sop)
 call <SID>AddOption("wrap", gettext("long lines wrap"))
 call append("$", "\t" .. s:local_to_window)
 call <SID>BinOptionL("wrap")
@@ -833,10 +835,6 @@ if has('wayland')
   call <SID>AddOption("wlseat", gettext("Wayland seat to use"))
   call <SID>OptionG("wse", &wse)
 endif
-if has("wayland_focus_steal")
-  call <SID>AddOption("wlsteal", gettext("Enable wayland focus stealing functionality in order to access the clipboard"))
-  call <SID>BinOptionG("wst", &wst)
-endif
 call <SID>AddOption("keymodel", gettext("\"startsel\" and/or \"stopsel\"; what special keys can do"))
 call <SID>OptionG("km", &km)
 
@@ -913,6 +911,8 @@ if has("insert_expand")
   call <SID>OptionG("pmw", &pmw)
   call <SID>AddOption("pumborder", gettext("popup border style"))
   call <SID>OptionG("pb", &pb)
+  call <SID>AddOption("pumopt", gettext("additional options for the popup menu"))
+  call <SID>OptionG("pumopt", &pumopt)
   call <SID>AddOption("completefunc", gettext("user defined function for Insert mode completion"))
   call append("$", "\t" .. s:local_to_buffer)
   call <SID>OptionL("cfu")
@@ -1106,6 +1106,8 @@ call append("$", "\t" .. s:local_to_buffer)
 call <SID>BinOptionL("ml")
 call <SID>AddOption("modelineexpr", gettext("allow setting expression options from a modeline"))
 call <SID>BinOptionG("mle", &mle)
+call <SID>AddOption("modelinestrict", gettext("only allow safe options to be set from a modeline"))
+call <SID>BinOptionG("modelinestrict", &modelinestrict)
 call <SID>AddOption("modelines", gettext("number of lines to check for modelines"))
 call append("$", " \tset mls=" . &mls)
 call <SID>AddOption("binary", gettext("binary file editing"))

@@ -42,7 +42,7 @@ static void	set_cmdspos(void);
 static void	set_cmdspos_cursor(void);
 static void	correct_cmdspos(int idx, int cells);
 static void	dealloc_cmdbuff(void);
-static void	alloc_cmdbuff(int len);
+static void	alloc_cmdbuff(size_t len);
 static void	draw_cmdline(int start, int len);
 static void	save_cmdline(cmdline_info_T *ccp);
 static void	restore_cmdline(cmdline_info_T *ccp);
@@ -245,7 +245,7 @@ parse_pattern_and_range(
     // Skip over the range to find the command.
     cmd = skip_range(ea.cmd, TRUE, NULL);
 
-    if (vim_strchr((char_u *)"sgvl", *cmd) == NULL)
+    if (vim_strchr((char_u *)"sgvlu", *cmd) == NULL)
 	return FALSE;
 
     // Skip over command name to find pattern separator
@@ -584,7 +584,7 @@ may_do_incsearch_highlighting(
 
     // May redraw the status line to show the cursor position.
     if (p_ru && curwin->w_status_height > 0)
-	curwin->w_redr_status = TRUE;
+	curwin->w_redr_status = true;
 
     update_screen(UPD_SOME_VALID);
     highlight_match = FALSE;
@@ -614,14 +614,18 @@ may_adjust_incsearch_highlighting(
 	incsearch_state_T	*is_state,
 	int			c)
 {
-    int	    skiplen, patlen;
-    pos_T   t;
-    char_u  *pat;
-    int	    search_flags = SEARCH_NOOF;
-    int	    i;
-    int	    save;
-    int	    bslsh = FALSE;
-    int	    search_delim;
+    int		skiplen, patlen;
+    pos_T	t;
+    char_u	*pat;
+    char_u	*dircp = NULL;
+    char_u	*searchstr;
+    char_u	*strcopy = NULL;
+    size_t	searchstrlen;
+    size_t	patlen_s;
+    soffset_T	offset;
+    int		search_flags = SEARCH_NOOF;
+    int		i;
+    int		search_delim;
 
     // Parsing range may already set the last search pattern.
     // NOTE: must call restore_last_search_pattern() before returning!
@@ -639,31 +643,16 @@ may_adjust_incsearch_highlighting(
 	return FAIL;
     }
 
-    if (search_delim == ccline.cmdbuff[skiplen])
-    {
-	pat = last_search_pattern();
-	if (pat == NULL)
-	{
-	    restore_last_search_pattern();
-	    return FAIL;
-	}
-	skiplen = 0;
-	patlen = (int)last_search_pattern_len();
-    }
-    else
-	pat = ccline.cmdbuff + skiplen;
+    pat = ccline.cmdbuff + skiplen;
+    searchstr = pat;
+    searchstrlen = (size_t)patlen;
+    patlen_s = (size_t)(ccline.cmdlen - skiplen);
 
     // do not search for the search end delimiter,
     // unless it is part of the pattern
-    if (patlen > 2 && firstc == pat[patlen - 1])
-    {
-	patlen--;
-	if (pat[patlen - 1] == '\\')
-	{
-	    pat[patlen - 1] = firstc;
-	    bslsh = TRUE;
-	}
-    }
+    (void)parse_search_pattern_offset(&pat, &patlen_s, search_delim,
+				    SEARCH_OPT, &strcopy, &searchstr,
+				    &searchstrlen, &dircp, &offset);
 
     cursor_off();
     out_flush();
@@ -681,18 +670,39 @@ may_adjust_incsearch_highlighting(
     if (!p_hls)
 	search_flags += SEARCH_KEEP;
     ++emsg_off;
-    save = pat[patlen];
-    pat[patlen] = NUL;
     i = searchit(curwin, curbuf, &t, NULL,
 		 c == Ctrl_G ? FORWARD : BACKWARD,
-		 pat, patlen, count, search_flags, RE_SEARCH, NULL);
+		 searchstr, searchstrlen, count, search_flags, RE_SEARCH, NULL);
     --emsg_off;
-    pat[patlen] = save;
-    if (bslsh)
-	pat[patlen - 1] = '\\';
+    if (dircp != NULL)
+	*dircp = search_delim;
     if (i)
     {
-	is_state->search_start = is_state->match_start;
+	pos_T	match_start = is_state->match_start;
+	pos_T	match_end = is_state->match_end;
+	long	off = offset.off;
+
+	is_state->search_start = match_start;
+	if (!offset.line && (offset.end || off != 0))
+	{
+	    if (offset.end)
+	    {
+		is_state->search_start = match_end;
+		(void)decl(&is_state->search_start);
+	    }
+	    while (off > 0)
+	    {
+		if (incl(&is_state->search_start) == -1)
+		    break;
+		--off;
+	    }
+	    while (off < 0)
+	    {
+		if (decl(&is_state->search_start) == -1)
+		    break;
+		++off;
+	    }
+	}
 	is_state->match_end = t;
 	is_state->match_start = t;
 	if (c == Ctrl_T && firstc != '?')
@@ -733,6 +743,7 @@ may_adjust_incsearch_highlighting(
     }
     else
 	vim_beep(BO_ERROR);
+    vim_free(strcopy);
     restore_last_search_pattern();
     return FAIL;
 }
@@ -1537,7 +1548,7 @@ cmdline_browse_history(
 		}
 		if (i == 0)
 		{
-		    alloc_cmdbuff((int)len);
+		    alloc_cmdbuff(len);
 		    if (ccline.cmdbuff == NULL)
 		    {
 			res = GOTO_NORMAL_MODE;
@@ -1550,7 +1561,7 @@ cmdline_browse_history(
 	}
 	else
 	{
-	    alloc_cmdbuff((int)plen);
+	    alloc_cmdbuff(plen);
 	    if (ccline.cmdbuff == NULL)
 	    {
 		res = GOTO_NORMAL_MODE;
@@ -1829,7 +1840,7 @@ getcmdline_int(
 	FOR_ALL_WINDOWS(wp)
 	    if (*p_stl != NUL || *wp->w_p_stl != NUL)
 	    {
-		wp->w_redr_status = TRUE;
+		wp->w_redr_status = true;
 		found_one = TRUE;
 	    }
 
@@ -3491,7 +3502,7 @@ dealloc_cmdbuff(void)
  * Assigns the new buffer to ccline.cmdbuff and ccline.cmdbufflen.
  */
     static void
-alloc_cmdbuff(int len)
+alloc_cmdbuff(size_t len)
 {
     /*
      * give some extra space to avoid having to allocate all the time
@@ -3502,7 +3513,7 @@ alloc_cmdbuff(int len)
 	len += 20;
 
     ccline.cmdbuff = alloc(len);    // caller should check for out-of-memory
-    ccline.cmdbufflen = len;
+    ccline.cmdbufflen = (int)len;
 }
 
 /*
@@ -4785,7 +4796,7 @@ open_cmdwin(void)
 	// win_close() autocommands may have already deleted the buffer.
 	if (newbuf_status == OK && bufref_valid(&bufref) &&
 		bufref.br_buf != curbuf)
-	    close_buffer(NULL, bufref.br_buf, DOBUF_WIPE, FALSE, FALSE);
+	    close_buffer(NULL, bufref.br_buf, DOBUF_WIPE, FALSE, FALSE, FALSE);
 
 	cmdwin_type = 0;
 	cmdwin_win = NULL;
@@ -4867,6 +4878,7 @@ open_cmdwin(void)
     exmode_active = 0;
 
     State = MODE_NORMAL;
+    check_cursor();
     setmouse();
     clear_showcmd();
 
@@ -5000,7 +5012,7 @@ open_cmdwin(void)
 	// win_close() may have already wiped the buffer when 'bh' is
 	// set to 'wipe', autocommands may have closed other windows
 	if (bufref_valid(&bufref) && bufref.br_buf != curbuf)
-	    close_buffer(NULL, bufref.br_buf, DOBUF_WIPE, FALSE, FALSE);
+	    close_buffer(NULL, bufref.br_buf, DOBUF_WIPE, FALSE, FALSE, FALSE);
 
 	// Restore window sizes.
 	win_size_restore(&winsizes);

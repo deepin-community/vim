@@ -312,7 +312,7 @@ EXTERN char e_function_name_required[]
 // E130 unused
 EXTERN char e_cannot_delete_function_str_it_is_in_use[]
 	INIT(= N_("E131: Cannot delete function %s: It is in use"));
-EXTERN char e_function_call_depth_is_higher_than_macfuncdepth[]
+EXTERN char e_function_call_depth_is_higher_than_maxfuncdepth[]
 	INIT(= N_("E132: Function call depth is higher than 'maxfuncdepth'"));
 EXTERN char e_return_not_inside_function[]
 	INIT(= N_("E133: :return not inside a function"));
@@ -1138,10 +1138,7 @@ EXTERN char e_cant_find_postscript_resource_file_str_ps[]
 EXTERN char e_cant_read_postscript_resource_file_str[]
 	INIT(= N_("E457: Can't read PostScript resource file \"%s\""));
 #endif
-#ifdef FEAT_GUI_X11
-EXTERN char e_cannot_allocate_colormap_entry_some_colors_may_be_incorrect[]
-	INIT(= N_("E458: Cannot allocate colormap entry, some colors may be incorrect"));
-#endif
+// E458 unused
 #if defined(UNIX) || defined(FEAT_SESSION)
 EXTERN char e_cannot_go_back_to_previous_directory[]
 	INIT(= N_("E459: Cannot go back to previous directory"));
@@ -1664,7 +1661,8 @@ EXTERN char e_invalid_buffer_identifier_in_setdot[]
 	INIT(= N_("E647: Invalid buffer identifier in setDot"));
 EXTERN char e_invalid_buffer_identifier_in_close[]
 	INIT(= N_("E648: Invalid buffer identifier in close"));
-// E649 unused
+EXTERN char e_invalid_identifier_in_defineannotype[]
+	INIT(= N_("E649: Invalid identifier name in defineAnnoType"));
 EXTERN char e_invalid_buffer_identifier_in_defineannotype[]
 	INIT(= N_("E650: Invalid buffer identifier in defineAnnoType"));
 EXTERN char e_invalid_buffer_identifier_in_addanno[]
@@ -3430,9 +3428,8 @@ EXTERN char e_internal_error_shortmess_too_long[]
 #ifdef FEAT_EVAL
 EXTERN char e_class_variable_str_not_found_in_class_str[]
 	INIT(= N_("E1337: Class variable \"%s\" not found in class \"%s\""));
-// E1338 unused
 #endif
-// E1339 unused
+// E1338 and E1339 unused
 #ifdef FEAT_EVAL
 EXTERN char e_argument_already_declared_in_class_str[]
 	INIT(= N_("E1340: Argument already declared in the class: %s"));
@@ -3737,7 +3734,7 @@ EXTERN char e_no_quickfix_stack[]
 EXTERN char e_cannot_switch_to_a_closing_buffer[]
 	INIT(= N_("E1546: Cannot switch to a closing buffer"));
 EXTERN char e_cannot_not_support_redrawtabpanel[]
-	INIT(= N_("E1547: This version of Vim does support :redrawtabpanel"));
+	INIT(= N_("E1547: This version of Vim does not support :redrawtabpanel"));
 #ifdef FEAT_WAYLAND
 EXTERN char e_wayland_connection_unavailable[]
 	INIT(= N_("E1548: Wayland connection is unavailable"));
@@ -3795,8 +3792,6 @@ EXTERN char e_osc_response_timed_out[]
 #ifdef FEAT_EVAL
 EXTERN char e_cannot_add_listener_in_listener_callback[]
 	INIT(= N_("E1569: Cannot use listener_add in a listener callback"));
-#endif
-#ifdef FEAT_EVAL
 EXTERN char e_cannot_add_redraw_listener_in_listener_callback[]
 	INIT(= N_("E1570: Cannot use redraw_listener_add in a redraw listener callback"));
 EXTERN char e_no_redraw_listener_callbacks_defined[]
@@ -3809,4 +3804,8 @@ EXTERN char e_cannot_listen_on_port[]
 	INIT(= N_("E1573: Cannot listen on port"));
 EXTERN char e_gethostbyname_in_channel_listen[]
 	INIT(= N_("E1574: gethostbyname(): cannot resolve hostname in channel_listen()"));
+#endif
+#ifdef FEAT_EVAL
+EXTERN char e_cannot_create_pipes[]
+	INIT(= N_("E1575: Cannot create pipes"));
 #endif

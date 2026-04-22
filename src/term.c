@@ -154,6 +154,9 @@ static termrequest_T rcs_status = TERMREQUEST_INIT;
 // Request window's position report:
 static termrequest_T winpos_status = TERMREQUEST_INIT;
 
+// Request DECRQM (DEC mode) report:
+static termrequest_T decrqm_status = TERMREQUEST_INIT;
+
 static termrequest_T *all_termrequests[] = {
     &crv_status,
     &u7_status,
@@ -165,6 +168,7 @@ static termrequest_T *all_termrequests[] = {
     &rbm_status,
     &rcs_status,
     &winpos_status,
+    &decrqm_status,
     NULL
 };
 
@@ -689,7 +693,7 @@ static tcap_entry_T builtin_sync_output[] = {
 /*
  * List of DECRQM modes that Vim supports
  */
-static int dec_modes[] = {
+static const int dec_modes[] = {
     2026,   // Synchronized output
 #ifdef UNIX
     2048    // In-band terminal resize events
@@ -1539,8 +1543,10 @@ typedef struct {
 #define TPR_MOUSE		    3
 // term response indicates kitty
 #define TPR_KITTY		    4
+// can send DECRQM requests to terminal
+#define TPR_DECRQM		    5
 // table size
-#define TPR_COUNT		    5
+#define TPR_COUNT		    6
 
 static termprop_T term_props[TPR_COUNT];
 
@@ -1564,6 +1570,8 @@ init_term_props(int all)
     term_props[TPR_MOUSE].tpr_set_by_termresponse = TRUE;
     term_props[TPR_KITTY].tpr_name = "kitty";
     term_props[TPR_KITTY].tpr_set_by_termresponse = FALSE;
+    term_props[TPR_DECRQM].tpr_name = "decrqm";
+    term_props[TPR_DECRQM].tpr_set_by_termresponse = TRUE;
 
     for (i = 0; i < TPR_COUNT; ++i)
 	if (all || term_props[i].tpr_set_by_termresponse)
@@ -1587,7 +1595,8 @@ f_terminalprops(typval_T *argvars UNUSED, typval_T *rettv)
 
 	value[0] = term_props[i].tpr_status;
 	value[1] = NUL;
-	dict_add_string(rettv->vval.v_dict, term_props[i].tpr_name, value);
+	dict_add_string_len(rettv->vval.v_dict, term_props[i].tpr_name,
+	    value, (value[0] == NUL) ? 0 : 1);
     }
 # endif
 }
@@ -2807,7 +2816,7 @@ termcapinit(char_u *name)
 /*
  * The number of calls to ui_write is reduced by using "out_buf".
  */
-#define OUT_SIZE	2047
+#define OUT_SIZE	8191
 
 // add one to allow mch_write() in os_win32.c to append a NUL
 static char_u		out_buf[OUT_SIZE + 1];
@@ -4303,6 +4312,36 @@ may_req_bg_color(void)
     }
 }
 
+/*
+ * Query the settings for the DEC modes we support via DECRQM.
+ * Only sent once, and only when the terminal is known not to dislike it
+ * (i.e. TPR_DECRQM is TPR_YES, or still TPR_UNKNOWN when the version response
+ * has not yet been received).
+ * The DECRPM responses are caught in handle_csi().
+ */
+    void
+may_req_decrqm(void)
+{
+    if (decrqm_status.tr_progress == STATUS_GET
+	    && term_props[TPR_DECRQM].tpr_status != TPR_NO
+	    && can_get_termresponse()
+	    && starting == 0)
+    {
+	MAY_WANT_TO_LOG_THIS;
+	LOG_TR1("Sending DECRQM requests");
+	for (int i = 0; i < (int)ARRAY_LENGTH(dec_modes); i++)
+	{
+	    vim_snprintf((char *)IObuff, IOSIZE, "\033[?%d$p", dec_modes[i]);
+	    out_str(IObuff);
+	}
+	termrequest_sent(&decrqm_status);
+	// check for the characters now, otherwise they might be eaten by
+	// get_keystroke()
+	out_flush();
+	(void)vpeekc_nomap();
+    }
+}
+
 #endif
 
 /*
@@ -5171,21 +5210,27 @@ handle_version_response(int first, int *arg, int argc, char_u *tp)
 		may_adjust_color_count(256);
 	    // Libvterm can handle SGR mouse reporting.
 	    term_props[TPR_MOUSE].tpr_status = TPR_MOUSE_SGR;
+	    term_props[TPR_DECRQM].tpr_status = TPR_YES;
 	}
 
 	if (version == 95)
 	{
 	    // Mac Terminal.app sends 1;95;0
+	    //
+	    // Terminal.app doesn't seem to handle DECRQM sequences
+	    // properly, see issue #19852.
 	    if (arg[0] == 1 && arg[2] == 0)
 	    {
 		term_props[TPR_UNDERLINE_RGB].tpr_status = TPR_YES;
 		term_props[TPR_MOUSE].tpr_status = TPR_MOUSE_SGR;
+		term_props[TPR_DECRQM].tpr_status = TPR_NO;
 	    }
 	    // iTerm2 sends 0;95;0
 	    else if (arg[0] == 0 && arg[2] == 0)
 	    {
 		// iTerm2 can do SGR mouse reporting
 		term_props[TPR_MOUSE].tpr_status = TPR_MOUSE_SGR;
+		term_props[TPR_DECRQM].tpr_status = TPR_YES;
 	    }
 	    // old iTerm2 sends 0;95;
 	    else if (arg[0] == 0 && arg[2] == -1)
@@ -5211,6 +5256,7 @@ handle_version_response(int first, int *arg, int argc, char_u *tp)
 		term_props[TPR_MOUSE].tpr_status = TPR_MOUSE_SGR;
 	    else if (version >= 95)
 		term_props[TPR_MOUSE].tpr_status = TPR_MOUSE_XTERM2;
+	    term_props[TPR_DECRQM].tpr_status = TPR_YES;
 	}
 
 	// Detect terminals that set $TERM to something like
@@ -5223,11 +5269,15 @@ handle_version_response(int first, int *arg, int argc, char_u *tp)
 	// Assuming any version number over 2500 is not an
 	// xterm (without the limit for rxvt and screen).
 	if (arg[1] >= 2500)
+	{
 	    term_props[TPR_UNDERLINE_RGB].tpr_status = TPR_YES;
+	    term_props[TPR_DECRQM].tpr_status = TPR_YES;
+	}
 
 	else if (version == 136 && arg[2] == 0)
 	{
 	    term_props[TPR_UNDERLINE_RGB].tpr_status = TPR_YES;
+	    term_props[TPR_DECRQM].tpr_status = TPR_YES;
 
 	    // PuTTY sends 0;136;0
 	    if (arg[0] == 0)
@@ -5251,6 +5301,7 @@ handle_version_response(int first, int *arg, int argc, char_u *tp)
 
 	    // Kitty can handle SGR mouse reporting.
 	    term_props[TPR_MOUSE].tpr_status = TPR_MOUSE_SGR;
+	    term_props[TPR_DECRQM].tpr_status = TPR_YES;
 	}
 
 	// GNU screen sends 83;30600;0, 83;40500;0, etc.
@@ -5261,6 +5312,9 @@ handle_version_response(int first, int *arg, int argc, char_u *tp)
 	{
 	    term_props[TPR_CURSOR_STYLE].tpr_status = TPR_NO;
 	    term_props[TPR_CURSOR_BLINK].tpr_status = TPR_NO;
+	    term_props[TPR_DECRQM].tpr_status = TPR_NO; // screen doesn't seem
+							// to handle DECRQM
+							// sequences
 	}
 
 	// Xterm first responded to this request at patch level
@@ -5751,6 +5805,13 @@ handle_csi(
 	*slen = csi_len;
 	key_name[0] = (int)KS_EXTRA;
 	key_name[1] = (int)KE_IGNORE;
+
+#ifdef FEAT_TERMRESPONSE
+	// Mark the DECRQM request as answered so it is not sent again and
+	// stoptermcap() does not wait for it.
+	if (decrqm_status.tr_progress == STATUS_SENT)
+	    decrqm_status.tr_progress = STATUS_GOT;
+#endif
 
 	if (setting >= 0 && setting <= 4)
 	{
@@ -7209,6 +7270,13 @@ find_term_bykeys(char_u *src, int *matchlen)
     int         slen, modslen;
     int         thislen;
 
+    // Most input bytes cannot start a terminal code.  Reuse the same leader
+    // table as check_termcode() to avoid scanning termcodes[] unnecessarily.
+    if (need_gather)
+	gather_termleader();
+    if (*src == NUL || vim_strchr(termleader, *src) == NULL)
+	return -1;
+
     // find longest match
     // borrows part of check_termcode
     for (i = 0; i < tc_len; ++i)
@@ -7596,6 +7664,14 @@ got_code_from_term(char_u *code, int len)
 							     name[0], name[1]);
 # endif
 		}
+		else if (i >= 0 && name[0] == 'K' && VIM_ISDIGIT(name[1]))
+		{
+		    // Would replace existing entry with keypad key - skip.
+# ifdef FEAT_EVAL
+		    ch_log(NULL, "got_code_from_term(): Skipping entry %c%c in favor of %c%c with matching keys %s",
+			    name[0], name[1], termcodes[i].name[0], termcodes[i].name[1], str);
+# endif
+		}
 		else
 		{
 		    if (i >= 0)
@@ -7819,11 +7895,11 @@ swap_tcap(void)
 
 
 #if (defined(MSWIN) && (!defined(FEAT_GUI_MSWIN) || defined(VIMDLL))) || defined(FEAT_TERMINAL)
-static int cube_value[] = {
+static const int cube_value[] = {
     0x00, 0x5F, 0x87, 0xAF, 0xD7, 0xFF
 };
 
-static int grey_ramp[] = {
+static const int grey_ramp[] = {
     0x08, 0x12, 0x1C, 0x26, 0x30, 0x3A, 0x44, 0x4E, 0x58, 0x62, 0x6C, 0x76,
     0x80, 0x8A, 0x94, 0x9E, 0xA8, 0xB2, 0xBC, 0xC6, 0xD0, 0xDA, 0xE4, 0xEE
 };
@@ -7972,24 +8048,6 @@ term_replace_keycodes(char_u *ta_buf, int ta_len, int len_arg)
 }
 
 /*
- * Query the settings for the DEC modes we support
- */
-    void
-send_decrqm_modes(void)
-{
-    if (termcap_active && cur_tmode == TMODE_RAW)
-    {
-	// Request setting of relevant DEC modes via DECRQM
-	for (int i = 0; i < (int)ARRAY_LENGTH(dec_modes); i++)
-	{
-	    vim_snprintf((char *)IObuff, IOSIZE, "\033[?%d$p", dec_modes[i]);
-	    out_str(IObuff);
-	}
-	out_flush();
-    }
-}
-
-/*
  * Should be called when cleaning up terminal state.
  */
     void
@@ -8051,12 +8109,19 @@ term_set_win_resize(bool state)
  * Enable or disable synchronized output if possible. Specification can be found
  * here:
  * https://github.com/contour-terminal/vt-extensions/blob/master/synchronized-output.md
+ *
+ * BSU/ESU do not need to bypass out_buf and go straight to ui_write().
+ * What matters is the order in which they reach the terminal:
+ * - BSU must be emitted before the batched redraw bytes.
+ * - ESU must be emitted after those redraw bytes.
+ * - A FLUSH must emit ESU and BSU together, then flush immediately.
+ * As long as out_flush() is done at those boundaries, putting BSU/ESU in
+ * out_buf reduces small writes without changing the observable protocol.
  */
     void
 term_set_sync_output(int flags)
 {
     bool    allowed;
-    char_u  *str;
 #ifdef FEAT_GUI
     bool    in_gui = gui.in_use;
 #else
@@ -8067,12 +8132,13 @@ term_set_sync_output(int flags)
 
     if (flags & TERM_SYNC_OUTPUT_FLUSH)
     {
-	// Tell terminal to display screen contents
+	// Tell terminal to display screen contents, then resume batching.
 	if (allowed && !in_gui && sync_output_state > 0 && *T_ESU != NUL &&
 		*T_BSU != NUL)
 	{
-	    ui_write((char_u *)T_ESU, (int)STRLEN(T_ESU), true);
-	    ui_write((char_u *)T_BSU, (int)STRLEN(T_BSU), true);
+	    out_str_nf(T_ESU);
+	    out_str_nf(T_BSU);
+	    out_flush();
 	}
 	return;
     }
@@ -8082,7 +8148,8 @@ term_set_sync_output(int flags)
     {
 	if (sync_output_state > 0 && *T_ESU != NUL)
 	{
-	    ui_write((char_u *)T_ESU, (int)STRLEN(T_ESU), true);
+	    out_str_nf(T_ESU);
+	    out_flush();
 	    sync_output_state = 0;
 	}
 	return;
@@ -8097,7 +8164,7 @@ term_set_sync_output(int flags)
     {
 	if (sync_output_state++ > 0)
 	    return;
-	str = T_BSU;
+	out_str_nf(T_BSU);
     }
     else if (flags & TERM_SYNC_OUTPUT_DISABLE)
     {
@@ -8107,15 +8174,12 @@ term_set_sync_output(int flags)
 	// all drawing output is sent to the terminal within the
 	// BSU..ESU window.  Without this, the drawing data remaining in
 	// out_buf would be sent after ESU, outside the sync batch.
+	out_str_nf(T_ESU);
 	out_flush();
-	str = T_ESU;
     }
     else
     {
 	siemsg("Unknown sync output value %d", flags);
 	return;
     }
-
-    // Directly write to terminal instead of using output buffer
-    ui_write((char_u *)str, (int)STRLEN(str), true);
 }

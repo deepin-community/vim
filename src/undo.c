@@ -495,12 +495,12 @@ u_savecommon(
     size = bot - top - 1;
 
     /*
-     * If curbuf->b_u_synced == TRUE make a new header.
+     * If curbuf->b_u_synced is true make a new header.
      */
     if (curbuf->b_u_synced)
     {
 	// Need to create new entry in b_changelist.
-	curbuf->b_new_change = TRUE;
+	curbuf->b_new_change = true;
 
 	if (get_undolevel() >= 0)
 	{
@@ -559,7 +559,7 @@ u_savecommon(
 	{
 	    if (old_curhead != NULL)
 		u_freebranch(curbuf, old_curhead, NULL);
-	    curbuf->b_u_synced = FALSE;
+	    curbuf->b_u_synced = false;
 	    return OK;
 	}
 
@@ -653,7 +653,7 @@ u_savecommon(
 			// entry now.  Following deleted/inserted lines go to
 			// the re-used entry.
 			u_getbot();
-			curbuf->b_u_synced = FALSE;
+			curbuf->b_u_synced = false;
 
 			// Move the found entry to become the last entry.  The
 			// order of undo/redo doesn't matter for the entries
@@ -740,7 +740,7 @@ u_savecommon(
 	uep->ue_array = NULL;
     uep->ue_next = curbuf->b_u_newhead->uh_entry;
     curbuf->b_u_newhead->uh_entry = uep;
-    curbuf->b_u_synced = FALSE;
+    curbuf->b_u_synced = false;
     undo_undoes = FALSE;
 
 #ifdef U_DEBUG
@@ -804,7 +804,7 @@ u_get_undo_file_name(char_u *buf_ffname, int reading)
 {
     char_u	*dirp;
     char_u	dir_name[IOSIZE + 1];
-    char_u	*munged_name = NULL;
+    string_T	munged_name = {NULL, 0};
     char_u	*undo_file_name = NULL;
     int		dir_len;
     char_u	*p;
@@ -862,16 +862,20 @@ u_get_undo_file_name(char_u *buf_ffname, int reading)
 	    dir_name[dir_len] = NUL;
 	    if (mch_isdir(dir_name))
 	    {
-		if (munged_name == NULL)
+		string_T    ret;
+
+		if (munged_name.string == NULL)
 		{
-		    munged_name = vim_strnsave(ffname, ffnamelen);
-		    if (munged_name == NULL)
+		    munged_name.string = vim_strnsave(ffname, ffnamelen);
+		    if (munged_name.string == NULL)
 			return NULL;
-		    for (p = munged_name; *p != NUL; MB_PTR_ADV(p))
+		    munged_name.length = ffnamelen;
+		    for (p = munged_name.string; *p != NUL; MB_PTR_ADV(p))
 			if (vim_ispathsep(*p))
 			    *p = '%';
 		}
-		undo_file_name = concat_fnames(dir_name, munged_name, TRUE);
+		undo_file_name = concat_fnames(dir_name, (size_t)dir_len,
+		    munged_name.string, munged_name.length, TRUE, &ret);
 	    }
 	}
 
@@ -882,7 +886,7 @@ u_get_undo_file_name(char_u *buf_ffname, int reading)
 	VIM_CLEAR(undo_file_name);
     }
 
-    vim_free(munged_name);
+    vim_free(munged_name.string);
     return undo_file_name;
 }
 
@@ -2142,7 +2146,7 @@ u_read_undo(char_u *name, char_u *hash, char_u *orig_name UNUSED)
     curbuf->b_u_save_nr_last = last_save_nr;
     curbuf->b_u_save_nr_cur = last_save_nr;
 
-    curbuf->b_u_synced = TRUE;
+    curbuf->b_u_synced = true;
     vim_free(uhp_table);
 
 # ifdef U_DEBUG
@@ -2195,7 +2199,7 @@ u_undo(int count)
      * original vi. If this happens twice in one macro the result will not
      * be compatible.
      */
-    if (curbuf->b_u_synced == FALSE)
+    if (!curbuf->b_u_synced)
     {
 	u_sync(TRUE);
 	count = 1;
@@ -2329,7 +2333,7 @@ undo_time(
     }
 
     // First make sure the current undoable change is synced.
-    if (curbuf->b_u_synced == FALSE)
+    if (!curbuf->b_u_synced)
 	u_sync(TRUE);
 
     u_newcount = 0;
@@ -3074,7 +3078,7 @@ u_sync(
 	return;		    // XIM is busy, don't break an undo sequence
 #endif
     if (get_undolevel() < 0)
-	curbuf->b_u_synced = TRUE;  // no entries, nothing to do
+	curbuf->b_u_synced = true;  // no entries, nothing to do
     else
     {
 	u_getbot();		    // compute ue_bot of previous u_save
@@ -3211,7 +3215,7 @@ ex_undojoin(exarg_T *eap UNUSED)
 	return;		    // no entries, nothing to do
     else
 	// Append next change to the last entry
-	curbuf->b_u_synced = FALSE;
+	curbuf->b_u_synced = false;
 }
 
 /*
@@ -3222,7 +3226,7 @@ ex_undojoin(exarg_T *eap UNUSED)
 u_unchanged(buf_T *buf)
 {
     u_unch_branch(buf->b_u_oldhead);
-    buf->b_did_warn = FALSE;
+    buf->b_did_warn = false;
 }
 
 /*
@@ -3315,7 +3319,7 @@ u_get_headentry(void)
 
 /*
  * u_getbot(): compute the line number of the previous u_save
- *		It is called only when b_u_synced is FALSE.
+ *		It is called only when b_u_synced is false.
  */
     static void
 u_getbot(void)
@@ -3349,7 +3353,7 @@ u_getbot(void)
 	curbuf->b_u_newhead->uh_getbot_entry = NULL;
     }
 
-    curbuf->b_u_synced = TRUE;
+    curbuf->b_u_synced = true;
 }
 
 /*
@@ -3476,7 +3480,7 @@ u_freeentry(u_entry_T *uep, long n)
 u_clearall(buf_T *buf)
 {
     buf->b_u_newhead = buf->b_u_oldhead = buf->b_u_curhead = NULL;
-    buf->b_u_synced = TRUE;
+    buf->b_u_synced = true;
     buf->b_u_numhead = 0;
     buf->b_u_line_ptr.ul_line = NULL;
     buf->b_u_line_ptr.ul_len = 0;

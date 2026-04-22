@@ -1380,7 +1380,7 @@ static argcheck_T arg45_sign_place[] = {arg_number, arg_string, arg_string, arg_
 static argcheck_T arg23_slice[] = {arg_slice1, arg_number, arg_number};
 static argcheck_T arg13_sortuniq[] = {arg_list_any_mod, arg_sort_how, arg_dict_any};
 static argcheck_T arg24_strpart[] = {arg_string, arg_number, arg_number, arg_bool};
-static argcheck_T arg12_system[] = {arg_string, arg_str_or_nr_or_list};
+static argcheck_T arg12_system[] = {arg_string_or_list_any, arg_str_or_nr_or_list};
 static argcheck_T arg23_win_execute[] = {arg_number, arg_string_or_list_string, arg_string};
 static argcheck_T arg23_writefile[] = {arg_list_or_blob, arg_string, arg_string};
 static argcheck_T arg24_match_func[] = {arg_string_or_list_any, arg_string, arg_number, arg_number};
@@ -2184,7 +2184,7 @@ static const funcentry_T global_functions[] =
     {"environ",		0, 0, 0,	    NULL,
 			ret_dict_string,    f_environ},
     {"err_teapot",	0, 1, 0,	    NULL,
-			ret_number_bool,    f_err_teapot},
+			ret_void,	    f_err_teapot},
     {"escape",		2, 2, FEARG_1,	    arg2_string,
 			ret_string,	    f_escape},
     {"eval",		1, 1, FEARG_1,	    arg1_string,
@@ -2750,7 +2750,7 @@ static const funcentry_T global_functions[] =
     {"remote_expr",	2, 4, FEARG_1,	    arg24_remote_expr,
 			ret_string,	    f_remote_expr},
     {"remote_foreground", 1, 1, FEARG_1,    arg1_string,
-			ret_string,	    f_remote_foreground},
+			ret_void,	    f_remote_foreground},
     {"remote_peek",	1, 2, FEARG_1,	    arg2_string,
 			ret_number,	    f_remote_peek},
     {"remote_read",	1, 2, FEARG_1,	    arg2_string_number,
@@ -3080,7 +3080,7 @@ static const funcentry_T global_functions[] =
     {"test_ignore_error", 1, 1, FEARG_1,    arg1_string,
 			ret_void,	    f_test_ignore_error},
     {"test_mswin_event", 2, 2, FEARG_1,     arg2_string_dict,
-			ret_number,	    f_test_mswin_event},
+			ret_bool,	    f_test_mswin_event},
     {"test_null_blob",	0, 0, 0,	    NULL,
 			ret_blob,	    f_test_null_blob},
     {"test_null_channel", 0, 0, 0,	    NULL,
@@ -3499,6 +3499,8 @@ call_internal_func(
 	return FCERR_OTHER;
     argvars[argcount].v_type = VAR_UNKNOWN;
     global_functions[i].f_func(argvars, rettv);
+    if (in_vim9script() && global_functions[i].f_retfunc == ret_void)
+	rettv->v_type = VAR_VOID;
     return FCERR_NONE;
 }
 
@@ -3509,6 +3511,8 @@ call_internal_func_by_idx(
 	typval_T    *rettv)
 {
     global_functions[idx].f_func(argvars, rettv);
+    if (in_vim9script() && global_functions[idx].f_retfunc == ret_void)
+	rettv->v_type = VAR_VOID;
 }
 
 /*
@@ -4386,6 +4390,9 @@ f_did_filetype(typval_T *argvars UNUSED, typval_T *rettv UNUSED)
 f_echoraw(typval_T *argvars, typval_T *rettv UNUSED)
 {
     char_u *str;
+
+    if (check_secure())
+	return;
 
     if (in_vim9script() && check_for_string_arg(argvars, 0) == FAIL)
 	return;
@@ -6186,8 +6193,8 @@ getregionpos(
 	int	lbr_saved = reset_lbr();
 #endif
 
-	getvvcol(curwin, p1, &sc1, NULL, &ec1);
-	getvvcol(curwin, p2, &sc2, NULL, &ec2);
+	getvvcol(curwin, p1, &sc1, NULL, &ec1, 0);
+	getvvcol(curwin, p2, &sc2, NULL, &ec2, 0);
 
 #ifdef FEAT_LINEBREAK
 	restore_lbr(lbr_saved);
@@ -7507,6 +7514,13 @@ f_has(typval_T *argvars, typval_T *rettv)
 		0
 #endif
 		},
+	{"statusline_click",
+#ifdef FEAT_STL_OPT
+		1
+#else
+		0
+#endif
+		},
 	{"netbeans_intg",
 #ifdef FEAT_NETBEANS_INTG
 		1
@@ -7664,13 +7678,6 @@ f_has(typval_T *argvars, typval_T *rettv)
 		},
 	{"wayland_clipboard",
 #ifdef FEAT_WAYLAND_CLIPBOARD
-		1
-#else
-		0
-#endif
-		},
-	{"wayland_focus_steal",
-#ifdef FEAT_WAYLAND_CLIPBOARD_FS
 		1
 #else
 		0
@@ -10402,6 +10409,7 @@ f_getreginfo(typval_T *argvars, typval_T *rettv)
 {
     int		regname;
     char_u	buf[NUMBUFLEN + 2];
+    size_t	buflen;
     long	reglen = 0;
     dict_T	*dict;
     list_T	*list;
@@ -10425,23 +10433,34 @@ f_getreginfo(typval_T *argvars, typval_T *rettv)
 	return;
     (void)dict_add_list(dict, "regcontents", list);
 
-    buf[0] = NUL;
-    buf[1] = NUL;
     switch (get_reg_type(regname, &reglen))
     {
-	case MLINE: buf[0] = 'V'; break;
-	case MCHAR: buf[0] = 'v'; break;
+	case MLINE:
+	    buf[0] = 'V';
+	    buf[1] = NUL;
+	    buflen = 1;
+	    break;
+	case MCHAR:
+	    buf[0] = 'v';
+	    buf[1] = NUL;
+	    buflen = 1;
+	    break;
 	case MBLOCK:
-		    vim_snprintf((char *)buf, sizeof(buf), "%c%ld", Ctrl_V,
-			    reglen + 1);
-		    break;
+	    buflen = vim_snprintf_safelen((char *)buf, sizeof(buf),
+		"%c%ld", Ctrl_V, reglen + 1);
+	    break;
+	default:
+	    buf[0] = NUL;
+	    buflen = 0;
+	    break;
     }
-    (void)dict_add_string(dict, (char *)"regtype", buf);
+    (void)dict_add_string_len(dict, (char *)"regtype", buf, (int)buflen);
 
     buf[0] = get_register_name(get_unname_register());
     buf[1] = NUL;
+    buflen = (buf[0] == NUL) ? 0 : 1;
     if (regname == '"')
-	(void)dict_add_string(dict, (char *)"points_to", buf);
+	(void)dict_add_string_len(dict, (char *)"points_to", buf, (int)buflen);
     else
     {
 	dictitem_T	*item = dictitem_alloc((char_u *)"isunnamed");
@@ -10459,11 +10478,11 @@ f_getreginfo(typval_T *argvars, typval_T *rettv)
     static void
 return_register(int regname, typval_T *rettv)
 {
-    char_u buf[2] = {0, 0};
+    char_u buf[2] = {NUL, NUL};
 
     buf[0] = (char_u)regname;
     rettv->v_type = VAR_STRING;
-    rettv->vval.v_string = vim_strsave(buf);
+    rettv->vval.v_string = vim_strnsave(buf, (buf[0] == NUL) ? 0 : 1);
 }
 
 /*
@@ -10570,7 +10589,7 @@ repeat_string(typval_T *str_tv, int n, typval_T *rettv)
     int		slen;
     int		len;
     char_u	*r;
-    int		i;
+    int		done;
 
     p = tv_get_string(str_tv);
     rettv->v_type = VAR_STRING;
@@ -10585,8 +10604,17 @@ repeat_string(typval_T *str_tv, int n, typval_T *rettv)
     if (r == NULL)
 	return;
 
-    for (i = 0; i < n; i++)
-	mch_memmove(r + i * slen, p, (size_t)slen);
+    mch_memmove(r, p, (size_t)slen);
+    done = slen;
+    while (done < len)
+    {
+	int copy_len = done;
+
+	if (copy_len > len - done)
+	    copy_len = len - done;
+	mch_memmove(r + done, r, (size_t)copy_len);
+	done += copy_len;
+    }
     r[len] = NUL;
 
     rettv->vval.v_string = r;
@@ -10828,7 +10856,7 @@ search_cmn(typval_T *argvars, pos_T *match_pos, int *flagsp)
     if (flags & SP_NOMOVE)
 	curwin->w_cursor = save_cursor;
     else
-	curwin->w_set_curswant = TRUE;
+	curwin->w_set_curswant = true;
 theend:
     p_ws = save_p_ws;
 
@@ -11420,7 +11448,7 @@ set_position(typval_T *argvars, typval_T *rettv, int charpos)
 	if (curswant >= 0)
 	{
 	    curwin->w_curswant = curswant - 1;
-	    curwin->w_set_curswant = FALSE;
+	    curwin->w_set_curswant = false;
 	}
 	check_cursor();
 	rettv->vval.v_number = 0;
@@ -11971,7 +11999,7 @@ f_spellbadword(typval_T *argvars UNUSED, typval_T *rettv)
 	if (len != 0)
 	{
 	    word = ml_get_cursor();
-	    curwin->w_set_curswant = TRUE;
+	    curwin->w_set_curswant = true;
 	}
     }
     else if (*curbuf->b_s.b_p_spl != NUL)
@@ -12782,7 +12810,7 @@ f_virtcol(typval_T *argvars, typval_T *rettv)
 	    if (fp->col > len)
 		fp->col = len;
 	}
-	getvvcol(curwin, fp, &vcol_start, NULL, &vcol_end);
+	getvvcol(curwin, fp, &vcol_start, NULL, &vcol_end, 0);
 	++vcol_start;
 	++vcol_end;
     }

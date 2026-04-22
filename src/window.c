@@ -724,7 +724,7 @@ wingotofile:
 			Prenum1, ACTION_SPLIT, (linenr_T)1, (linenr_T)MAXLNUM,
 			FALSE, FALSE);
 		vim_free(ptr);
-		curwin->w_set_curswant = TRUE;
+		curwin->w_set_curswant = true;
 		break;
 #endif
 
@@ -2717,10 +2717,10 @@ win_close_buffer(win_T *win, int action, int abort_if_last)
 	bufref_T    bufref;
 
 	set_bufref(&bufref, curbuf);
-	win->w_locked = TRUE;
-	close_buffer(win, win->w_buffer, action, abort_if_last, TRUE);
+	++win->w_locked;
+	close_buffer(win, win->w_buffer, action, abort_if_last, TRUE, TRUE);
 	if (win_valid_any_tab(win))
-	    win->w_locked = FALSE;
+	    --win->w_locked;
 	// Make sure curbuf is valid. It can become invalid if 'bufhidden' is
 	// "wipe".
 	if (!bufref_valid(&bufref))
@@ -2823,19 +2823,19 @@ win_close(win_T *win, int free_buf)
 	    other_buffer = TRUE;
 	    if (!win_valid(win))
 		return FAIL;
-	    win->w_locked = TRUE;
+	    ++win->w_locked;
 	    apply_autocmds(EVENT_BUFLEAVE, NULL, NULL, FALSE, curbuf);
 	    if (!win_valid(win))
 		return FAIL;
-	    win->w_locked = FALSE;
+	    --win->w_locked;
 	    if (last_window())
 		return FAIL;
 	}
-	win->w_locked = TRUE;
+	++win->w_locked;
 	apply_autocmds(EVENT_WINLEAVE, NULL, NULL, FALSE, curbuf);
 	if (!win_valid(win))
 	    return FAIL;
-	win->w_locked = FALSE;
+	--win->w_locked;
 	if (last_window())
 	    return FAIL;
 #ifdef FEAT_EVAL
@@ -2901,6 +2901,9 @@ win_close(win_T *win, int free_buf)
 #ifdef MESSAGE_QUEUE
     ++dont_parse_messages;
 #endif
+
+    if (win->w_buffer != NULL)
+	--win->w_buffer->b_nwindows;
 
     // Free the memory used for the window and get the window that received
     // the screen space.
@@ -3476,7 +3479,7 @@ win_close_othertab(win_T *win, int free_buf, tabpage_T *tp)
     if (win->w_buffer != NULL)
 	// Close the link to the buffer.
 	close_buffer(win, win->w_buffer, free_buf ? DOBUF_UNLOAD : 0,
-								 FALSE, TRUE);
+							    FALSE, TRUE, TRUE);
 
     // Careful: Autocommands may have closed the tab page or made it the
     // current tab page.
@@ -3528,6 +3531,9 @@ win_close_othertab(win_T *win, int free_buf, tabpage_T *tp)
 	if (h != tabline_height())
 	    shell_new_rows();
     }
+
+    if (win->w_buffer != NULL)
+	--win->w_buffer->b_nwindows;
 
     // Free the memory used for the window.
     win_free_mem(win, &dir, tp);
@@ -5771,7 +5777,7 @@ win_enter_ext(win_T *wp, int flags)
     if (curwin_invalid == 0)
     {
 	prevwin = curwin;	// remember for CTRL-W p
-	curwin->w_redr_status = TRUE;
+	curwin->w_redr_status = true;
     }
     curwin = wp;
     curbuf = wp->w_buffer;
@@ -5812,13 +5818,21 @@ win_enter_ext(win_T *wp, int flags)
     }
 
     maketitle();
-    curwin->w_redr_status = TRUE;
+    curwin->w_redr_status = true;
 #ifdef FEAT_TERMINAL
     if (bt_terminal(curwin->w_buffer))
 	// terminal is likely in another mode
 	redraw_mode = TRUE;
 #endif
     redraw_tabline = TRUE;
+    redraw_vseps = TRUE;
+    // Need to redraw all status lines so that the vsep character at
+    // status line rows is updated for the new current window.
+    {
+	win_T *ww;
+	FOR_ALL_WINDOWS(ww)
+	    ww->w_redr_status = true;
+    }
 #if defined(FEAT_TABPANEL)
     redraw_tabpanel = TRUE;
 #endif
@@ -5960,6 +5974,7 @@ win_alloc(win_T *after, int hidden)
 
     // use global option value for global-local options
     new_wp->w_allbuf_opt.wo_so = new_wp->w_p_so = -1;
+    new_wp->w_allbuf_opt.wo_sop = new_wp->w_p_sop = -1;
     new_wp->w_allbuf_opt.wo_siso = new_wp->w_p_siso = -1;
 
     // We won't calculate w_fraction until resizing the window
@@ -6038,6 +6053,14 @@ win_free(
 
     remove_highlight_overrides(wp->w_hl);
     vim_free(wp->w_hl);
+
+    // Free statusline click regions.
+    if (wp->w_stl_click != NULL)
+    {
+	for (i = 0; i < wp->w_stl_click_count; i++)
+	    vim_free(wp->w_stl_click[i].funcname);
+	vim_free(wp->w_stl_click);
+    }
 
     clear_winopt(&wp->w_onebuf_opt);
     clear_winopt(&wp->w_allbuf_opt);
@@ -6167,7 +6190,10 @@ win_free_popup(win_T *win)
 	if (bt_popup(win->w_buffer))
 	    win_close_buffer(win, DOBUF_WIPE_REUSE, FALSE);
 	else
-	    close_buffer(win, win->w_buffer, 0, FALSE, FALSE);
+	    close_buffer(win, win->w_buffer, 0, FALSE, FALSE, TRUE);
+
+	if (win->w_buffer != NULL)
+	    --win->w_buffer->b_nwindows;
     }
 # if defined(FEAT_TIMERS)
     // the timer may have been cleared, making the pointer invalid
@@ -6487,7 +6513,7 @@ frame_comp_pos(frame_T *topfrp, int *row, int *col)
 	    wp->w_winrow = *row;
 	    wp->w_wincol = *col;
 	    redraw_win_later(wp, UPD_NOT_VALID);
-	    wp->w_redr_status = TRUE;
+	    wp->w_redr_status = true;
 	}
 	// WinBar will not show if the window height is zero
 	h = VISIBLE_HEIGHT(wp) + wp->w_status_height;
@@ -7231,7 +7257,7 @@ win_fix_scroll(int resize)
 	{
 	    // Cursor position in this window may now be invalid.  It is kept
 	    // potentially invalid until the window is made the current window.
-	    wp->w_do_win_fix_cursor = TRUE;
+	    wp->w_do_win_fix_cursor = true;
 
 	    // If window has moved update botline to keep the same screenlines.
 	    if (*p_spk == 's' && wp->w_winrow != wp->w_prev_winrow
@@ -7289,7 +7315,7 @@ win_fix_cursor(int normal)
 	    || wp->w_buffer->b_ml.ml_line_count < wp->w_height)
 	return;
 
-    wp->w_do_win_fix_cursor = FALSE;
+    wp->w_do_win_fix_cursor = false;
     // Determine valid cursor range.
     long so = MIN(wp->w_height / 2, get_scrolloff_value());
     linenr_T lnum = wp->w_cursor.lnum;
@@ -7359,7 +7385,7 @@ win_new_height(win_T *wp, int height)
     }
 
     wp->w_height = height;
-    wp->w_redr_status = TRUE;
+    wp->w_redr_status = true;
     win_comp_scroll(wp);
 
     // There is no point in adjusting the scroll position when exiting.  Some
@@ -7505,7 +7531,7 @@ win_new_width(win_T *wp, int width)
 	curs_columns(TRUE);	// validate w_wrow
 
     redraw_win_later(wp, UPD_NOT_VALID);
-    wp->w_redr_status = TRUE;
+    wp->w_redr_status = true;
 }
 
     void
@@ -7861,6 +7887,8 @@ frame_change_statusline_height(void)
 {
     tabpage_T	*tp;
     int		global_stlh;
+
+    redraw_vseps = TRUE;
 
     // First pass: find space-constrained global height.
     global_stlh = stlo_mh;
