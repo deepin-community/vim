@@ -901,6 +901,7 @@ EXTERN long	p_sj;		// 'scrolljump'
 EXTERN int	p_scf;		// 'scrollfocus'
 #endif
 EXTERN long	p_so;		// 'scrolloff'
+EXTERN long	p_sop;		// 'scrolloffpad'
 EXTERN char_u	*p_sbo;		// 'scrollopt'
 EXTERN char_u	*p_sections;	// 'sections'
 EXTERN int	p_secure;	// 'secure'
@@ -1153,9 +1154,6 @@ EXTERN long	p_wmw;		// 'winminwidth'
 EXTERN long	p_wiw;		// 'winwidth'
 #ifdef FEAT_WAYLAND
 EXTERN char_u	*p_wse;		// 'wlseat'
-# ifdef FEAT_WAYLAND_CLIPBOARD_FS
-EXTERN int	p_wst;		// 'wlsteal'
-# endif
 EXTERN long     p_wtm;		// 'wltimeoutlen'
 #endif
 #if defined(MSWIN) && defined(FEAT_TERMINAL)
@@ -1378,6 +1376,7 @@ enum
     , WV_SMS
     , WV_SISO
     , WV_SO
+    , WV_SOP
 #ifdef FEAT_SPELL
     , WV_SPELL
 #endif

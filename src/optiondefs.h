@@ -209,6 +209,7 @@
 #define PV_SMS		OPT_WIN(WV_SMS)
 #define PV_SISO		OPT_BOTH(OPT_WIN(WV_SISO))
 #define PV_SO		OPT_BOTH(OPT_WIN(WV_SO))
+#define PV_SOP		OPT_BOTH(OPT_WIN(WV_SOP))
 #ifdef FEAT_SPELL
 # define PV_SPELL	OPT_WIN(WV_SPELL)
 #endif
@@ -2266,6 +2267,9 @@ static struct vimoption options[] =
     {"scrolloff",   "so",   P_NUM|P_VI_DEF|P_VIM|P_RALL,
 			    (char_u *)&p_so, PV_SO, NULL, NULL,
 			    {(char_u *)0L, (char_u *)0L} SCTX_INIT},
+    {"scrolloffpad", "sop", P_NUM|P_VI_DEF|P_VIM|P_RALL,
+				(char_u *)&p_sop, PV_SOP, NULL, NULL,
+				{(char_u *)0L, (char_u *)0L} SCTX_INIT},
     {"scrollopt",   "sbo",  P_STRING|P_VI_DEF|P_ONECOMMA|P_NODUP,
 			    (char_u *)&p_sbo, PV_NONE, did_set_scrollopt, expand_set_scrollopt,
 			    {(char_u *)"ver,jump", (char_u *)0L}
@@ -3035,14 +3039,9 @@ static struct vimoption options[] =
 			    {(char_u *)NULL, (char_u *)0L}
 #endif
 			    SCTX_INIT},
-    {"wlsteal",	    "wst",  P_BOOL|P_VI_DEF,
-#ifdef FEAT_WAYLAND_CLIPBOARD_FS
-			    (char_u *)&p_wst, PV_NONE, did_set_wlsteal, NULL,
-			    {(char_u *)FALSE, (char_u *)0L}
-#else
+    {"wlsteal",	    "wst",  P_BOOL|P_VI_DEF, // Deprecated
 			    (char_u *)NULL, PV_NONE, NULL, NULL,
 			    {(char_u *)NULL, (char_u *)0L}
-#endif
 			    SCTX_INIT},
     {"wltimeoutlen", "wtm", P_NUM|P_VI_DEF,
 #ifdef FEAT_WAYLAND
