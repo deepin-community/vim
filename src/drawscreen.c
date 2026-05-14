@@ -160,6 +160,11 @@ update_screen(int type_arg)
     }
     updating_screen = TRUE;
 
+    // Hide the cursor while redrawing when sync output is not active, to
+    // avoid visible cursor flicker on terminals like Windows ConPTY.
+    int hid_cursor = !sync_output_active();
+    if (hid_cursor)
+	cursor_off();
     term_set_sync_output(TERM_SYNC_OUTPUT_ENABLE);
 
 #ifdef FEAT_PROP_POPUP
@@ -447,6 +452,8 @@ update_screen(int type_arg)
 #endif
 
     term_set_sync_output(TERM_SYNC_OUTPUT_DISABLE);
+    if (hid_cursor)
+	cursor_on();
 
     return OK;
 }
@@ -613,7 +620,10 @@ win_redr_status(win_T *wp, int ignore_pum UNUSED)
 	for (i = 0; i < wp->w_status_height; i++)
 	{
 	    int r = row + i;
-	    fillchar = sep_cell_at_row(&attr, wp, r);
+	    if (stl_connected(wp))
+		fillchar = fillchar_status(&attr, wp);
+	    else
+		fillchar = fillchar_vsep(&attr, wp, r);
 	    screen_putchar(fillchar, r, W_ENDCOL(wp), attr);
 	}
     }
@@ -3424,13 +3434,6 @@ redraw_statuslines(void)
 	    if (ret)
 		pop_highlight_overrides();
 	}
-    if (redraw_vseps)
-    {
-	redraw_vseps = FALSE;
-	FOR_ALL_WINDOWS(wp)
-	    if (wp->w_vsep_width > 0)
-		draw_vsep_win(wp, 0);
-    }
     if (redraw_tabline)
 	draw_tabline();
 
@@ -3505,6 +3508,9 @@ f_redraw_listener_add(typval_T *argvars, typval_T *rettv)
     typval_T		tv;
     bool		got_one = false;
     static int		id;
+
+    if (check_secure())
+	return;
 
     if (redraw_cb_in_progress)
     {

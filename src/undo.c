@@ -2081,38 +2081,54 @@ u_read_undo(char_u *name, char_u *hash, char_u *orig_name UNUSED)
 		corruption_error("duplicate uh_seq", file_name);
 		goto error;
 	    }
-	for (j = 0; j < num_head; j++)
-	    if (uhp_table[j] != NULL
-				  && uhp_table[j]->uh_seq == uhp->uh_next.seq)
-	    {
-		uhp->uh_next.ptr = uhp_table[j];
-		SET_FLAG(j);
-		break;
-	    }
-	for (j = 0; j < num_head; j++)
-	    if (uhp_table[j] != NULL
-				  && uhp_table[j]->uh_seq == uhp->uh_prev.seq)
-	    {
-		uhp->uh_prev.ptr = uhp_table[j];
-		SET_FLAG(j);
-		break;
-	    }
-	for (j = 0; j < num_head; j++)
-	    if (uhp_table[j] != NULL
-			      && uhp_table[j]->uh_seq == uhp->uh_alt_next.seq)
-	    {
-		uhp->uh_alt_next.ptr = uhp_table[j];
-		SET_FLAG(j);
-		break;
-	    }
-	for (j = 0; j < num_head; j++)
-	    if (uhp_table[j] != NULL
-			      && uhp_table[j]->uh_seq == uhp->uh_alt_prev.seq)
-	    {
-		uhp->uh_alt_prev.ptr = uhp_table[j];
-		SET_FLAG(j);
-		break;
-	    }
+	{
+	    int seq = uhp->uh_next.seq;
+	    uhp->uh_next.ptr = NULL;
+	    for (j = 0; j < num_head; j++)
+		if (uhp_table[j] != NULL && i != j
+				    && uhp_table[j]->uh_seq == seq)
+		{
+		    uhp->uh_next.ptr = uhp_table[j];
+		    SET_FLAG(j);
+		    break;
+		}
+	}
+	{
+	    int seq = uhp->uh_prev.seq;
+	    uhp->uh_prev.ptr = NULL;
+	    for (j = 0; j < num_head; j++)
+		if (uhp_table[j] != NULL && i != j
+				    && uhp_table[j]->uh_seq == seq)
+		{
+		    uhp->uh_prev.ptr = uhp_table[j];
+		    SET_FLAG(j);
+		    break;
+		}
+	}
+	{
+	    int seq = uhp->uh_alt_next.seq;
+	    uhp->uh_alt_next.ptr = NULL;
+	    for (j = 0; j < num_head; j++)
+		if (uhp_table[j] != NULL && i != j
+				&& uhp_table[j]->uh_seq == seq)
+		{
+		    uhp->uh_alt_next.ptr = uhp_table[j];
+		    SET_FLAG(j);
+		    break;
+		}
+	}
+	{
+	    int seq = uhp->uh_alt_prev.seq;
+	    uhp->uh_alt_prev.ptr = NULL;
+	    for (j = 0; j < num_head; j++)
+		if (uhp_table[j] != NULL && i != j
+				&& uhp_table[j]->uh_seq == seq)
+		{
+		    uhp->uh_alt_prev.ptr = uhp_table[j];
+		    SET_FLAG(j);
+		    break;
+		}
+	}
 	if (old_header_seq > 0 && old_idx < 0 && uhp->uh_seq == old_header_seq)
 	{
 	    old_idx = i;
@@ -2262,7 +2278,8 @@ u_doit(int startcount)
 		beep_flush();
 		if (count == startcount - 1)
 		{
-		    msg(_("Already at oldest change"));
+		    if (!shortmess(SHM_UNDO))
+			msg(_("Already at oldest change"));
 		    return;
 		}
 		break;
@@ -2277,7 +2294,8 @@ u_doit(int startcount)
 		beep_flush();	// nothing to redo
 		if (count == startcount - 1)
 		{
-		    msg(_("Already at newest change"));
+		    if (!shortmess(SHM_UNDO))
+			msg(_("Already at newest change"));
 		    return;
 		}
 		break;
@@ -2530,10 +2548,13 @@ undo_time(
 
 	if (closest == closest_start)
 	{
-	    if (step < 0)
-		msg(_("Already at oldest change"));
-	    else
-		msg(_("Already at newest change"));
+	    if (!shortmess(SHM_UNDO))
+	    {
+		if (step < 0)
+		    msg(_("Already at oldest change"));
+		else
+		    msg(_("Already at newest change"));
+	    }
 	    return;
 	}
 
@@ -2996,7 +3017,8 @@ u_undo_end(
 #endif
 
     if (global_busy	    // no messages now, wait until global is finished
-	    || !messaging())  // 'lazyredraw' set, don't do messages now
+	    || !messaging() // 'lazyredraw' set, don't do messages now
+	    || shortmess(SHM_UNDO))
 	return;
 
     if (curbuf->b_ml.ml_flags & ML_EMPTY)

@@ -1,9 +1,26 @@
-vim (2:9.2.0387-0deepin1) unstable; urgency=medium
+vim (2:9.2.0461-1) unstable; urgency=medium
 
-  * New upstream version 9.2.0387
-  * Set-NoDisplay-true-for-vim-desktop.patch
+  * New upstream tag
+    + Security fixes
+      - 9.2.0435: backticks in 'path' may cause shell execution on completion
+        (Closes: #1136086, CVE-2026-44656)
+      - 9.2.0450: heap buffer overflow in spellfile SN_COMPOUND handling
+        (Closes: #1136097, CVE-2026-45130)
+    + syntax/autopkgtest.vim: Fix typos in breaks-testbed, build-needed, and
+      hint-testsuite-triggers. Mark skip-not-installable as deprecated.
 
- -- Tianyu Chen <sweetyfish@deepin.org>  Wed, 22 Apr 2026 16:15:40 +0800
+ -- James McCoy <jamessan@debian.org>  Sat, 09 May 2026 19:41:43 -0400
+
+vim (2:9.2.0428-1) unstable; urgency=medium
+
+  * New upstream tag
+    + Security fixes
+      - 9.2.0357: command injection via backticks in tag files (Closes:
+        #1134906, CVE-2026-41411)
+  * Remove xdg-shell.xml and primary-selection-unstable-v1.xml entries from
+    d/copyright
+
+ -- James McCoy <jamessan@debian.org>  Sat, 02 May 2026 10:39:07 -0400
 
 vim (2:9.2.0355-1) unstable; urgency=medium
 

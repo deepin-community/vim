@@ -904,6 +904,7 @@ extern int (*dyn_libintl_wputenv)(const wchar_t *envstring);
 #define WILD_NOSELECT		    0x4000
 #define WILD_MAY_EXPAND_PATTERN	    0x8000
 #define WILD_FUNC_TRIGGER	    0x10000 // called from wildtrigger()
+#define WILD_NOINSERT		    0x20000
 
 // Flags for expand_wildcards()
 #define EW_DIR		0x01	// include directory names
@@ -1094,7 +1095,7 @@ extern int (*dyn_libintl_wputenv)(const wchar_t *envstring);
 #define FM_BACKWARD	0x01	// search backwards
 #define FM_FORWARD	0x02	// search forwards
 #define FM_BLOCKSTOP	0x04	// stop at start/end of block
-#define FM_SKIPCOMM	0x08	// skip comments
+#define FM_SKIPCOMM	0x08	// skip comments (cursor must start outside)
 
 // Values for action argument for do_buffer() and close_buffer()
 #define DOBUF_GOTO	0	// go to specified buffer
@@ -1533,7 +1534,7 @@ typedef enum
     , HLF_S	    // status lines
     , HLF_SNC	    // status lines of not-current windows
     , HLF_C	    // column to separate vertically split windows
-    , HLF_CNC	    // column separator for not-current windows
+    , HLF_CNC	    // column to separate vertically split non-current windows
     , HLF_T	    // Titles for output from ":set all", ":autocmd" etc.
     , HLF_V	    // Visual mode
     , HLF_VNC	    // Visual mode, autoselecting and not clipboard owner
@@ -3096,5 +3097,18 @@ long elapsed(DWORD start_tick);
 
 // Flags used by getvcol()
 #define GETVCOL_END_EXCL_LBR	1
+
+// Used by expand_env_esc() callers that feed the result to
+// wildcard expansion, so that such characters embedded in
+// environment variable values are treated as literal.
+#ifdef VMS
+# define PATH_ESC_WILDCARDS	"*?%"
+#else
+# ifdef MSWIN
+#  define PATH_ESC_WILDCARDS	"*?["
+# else
+#  define PATH_ESC_WILDCARDS	"*?[{"
+# endif
+#endif
 
 #endif // VIM__H
