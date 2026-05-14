@@ -90,8 +90,6 @@ Files:
  runtime/syntax/requirements.vim
  runtime/syntax/typst.vim
  runtime/syntax/wat.vim
- src/auto/wayland/protocols/primary-selection-unstable-v1.xml
- src/auto/wayland/protocols/xdg-shell.xml
  src/fuzzy.c
 Copyright:
  2013 Jeroen Ruigrok van der Werven, Eli Parra
@@ -111,13 +109,6 @@ Copyright:
  Jon Parise <jon@indelible.org>
  2021 Noah Bogart
  El Kasztano
- 2015, 2016 Red Hat
- 2008-2013 Kristian Høgsberg
- 2013 Rafael Antognolli
- 2013 Jasper St. Pierre
- 2010-2013 Intel Corporation
- 2015-2017 Samsung Electronics Co., Ltd
- 2015-2017 Red Hat Inc.
  2014 John Hawthorn
  2026 Devin Weaver
  2015 Jouke van der Maas
