@@ -312,6 +312,9 @@ static char *(highlight_init_both[]) = {
     "default link PmenuExtraSel PmenuSel",
     "default link PmenuBorder Pmenu",
     "default link PopupSelected PmenuSel",
+    "default link Popup Pmenu",
+    "default link PopupBorder Pmenu",
+    "default link PopupTitle Pmenu",
     "default link MessageWindow WarningMsg",
     "default link PopupNotification WarningMsg",
     "default link PreInsert Added",
@@ -3300,7 +3303,7 @@ blend_cterm_colors(int popup_c, guicolor_T popup_rgb,
 #if defined(FEAT_GUI) || defined(FEAT_TERMGUICOLORS)
 /*
  * Blend two RGB colors based on blend value (0-100).
- * blend: 0=use popup color, 100=use background color
+ * blend: 0=return first argument color, 100=return second argument color
  * If bg_color is INVALCOLOR, high blend means more visible (return INVALCOLOR).
  */
     static guicolor_T
@@ -3394,7 +3397,7 @@ hl_blend_attr(int char_attr, int popup_attr, int blend, int blend_fg UNUSED)
 				&& char_aep->ae_u.gui.fg_color != INVALCOLOR)
 			    base_fg = char_aep->ae_u.gui.fg_color;
 			new_en.ae_u.gui.fg_color = blend_colors(
-				base_fg, popup_aep->ae_u.gui.bg_color, blend);
+				popup_aep->ae_u.gui.bg_color, base_fg, blend);
 		    }
 		}
 		else
@@ -3534,7 +3537,7 @@ hl_blend_attr(int char_attr, int popup_attr, int blend, int blend_fg UNUSED)
 				    && !COLOR_INVALID(char_aep->ae_u.cterm.fg_rgb))
 				base_fg = char_aep->ae_u.cterm.fg_rgb;
 			    new_en.ae_u.cterm.fg_rgb = blend_colors(
-				    base_fg, popup_bg, blend);
+				    popup_bg, base_fg, blend);
 			}
 		    }
 		    else

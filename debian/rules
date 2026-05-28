@@ -44,6 +44,7 @@ CFGFLAGS += --with-modified-by="$(BUILDER)"
 CFGFLAGS += --with-compiledby="$(BUILDER)"
 CFGFLAGS += --enable-fail-if-missing
 CFGFLAGS += --with-global-runtime='/var/lib/vim/addons,/etc/vim,$$VIM/vimfiles'
+CFGFLAGS += --disable-gtk4-check
 
 TINYFLAGS = --with-features=small
 TINYFLAGS += --disable-gui
@@ -73,7 +74,6 @@ OPTFLAGS += --enable-libsodium
 NOXFLAGS = --without-x
 NOXFLAGS += --enable-gui=no
 NOXFLAGS += --disable-canberra
-NOXFLAGS += --enable-socketserver
 NOXFLAGS += --without-wayland
 
 GUIFLAGS = --with-x
@@ -91,7 +91,6 @@ GTK3FLAGS += --disable-gnome-check
 GTK3FLAGS += --disable-motif-check
 GTK3FLAGS += --disable-motif-check
 GTK3FLAGS += --disable-fontset
-GTK3FLAGS += --enable-socketserver
 
 MOTIFFLAGS = --enable-gui=motif
 MOTIFFLAGS += --disable-gtk2-check

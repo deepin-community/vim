@@ -690,6 +690,7 @@ extern int (*dyn_libintl_wputenv)(const wchar_t *envstring);
 #define POPF_INFO_MENU	0x400	// align info popup with popup menu
 #define POPF_POSINVERT	0x800	// vertical position can be inverted
 #define POPF_OPACITY 0x1000	// popup has opacity/transparency setting
+#define POPF_CLIPWINDOW	0x2000	// confine popup to its host window's rect
 
 // flags used in w_popup_handled
 #define POPUP_HANDLED_1	    0x01    // used by mouse_find_win()
@@ -1483,6 +1484,8 @@ enum auto_event
     EVENT_TEXTCHANGEDI,		// text was modified in Insert mode
     EVENT_TEXTCHANGEDP,		// TextChangedI with popup menu visible
     EVENT_TEXTCHANGEDT,		// text was modified in Terminal mode
+    EVENT_TEXTPUTPOST,		// after some text was put
+    EVENT_TEXTPUTPRE,		// before some text was put
     EVENT_TEXTYANKPOST,		// after some text was yanked
     EVENT_USER,			// user defined autocommand
     EVENT_VIMENTER,		// after starting Vim
@@ -1565,6 +1568,9 @@ typedef enum
     , HLF_PST	    // popup menu scrollbar thumb
     , HLF_PMB	    // popup menu border
     , HLF_PMS	    // popup menu shadow
+    , HLF_POP	    // popup window body
+    , HLF_POPB	    // popup window border
+    , HLF_POPT	    // popup window title
     , HLF_TP	    // tabpage line
     , HLF_TPS	    // tabpage line selected
     , HLF_TPF	    // tabpage line filler
@@ -1590,6 +1596,7 @@ typedef enum
 		  'w', 'W', 'f', 'F', 'A', 'C', 'D', 'T', 'E', '-', '>', \
 		  'B', 'P', 'R', 'L', \
 		  '+', '=', 'k', '<','[', ']', '{', '}', 'x', 'X', 'j', 'H', \
+		  'p', 'J', 'Q', \
 		  '*', '#', '_', '!', '.', 'o', 'q', \
 		  'z', 'Z', 'g', \
 		  '%', '^', '&', 'I', '('}
@@ -2358,7 +2365,7 @@ typedef struct
     Atom	sel_atom;	// PRIMARY/CLIPBOARD selection ID
 # endif
 
-# ifdef FEAT_GUI_GTK
+# if defined(FEAT_GUI_GTK) && !defined(USE_GTK4)
     GdkAtom     gtk_sel_atom;	// PRIMARY/CLIPBOARD selection ID
 # endif
 
