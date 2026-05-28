@@ -1,8 +1,16 @@
-vim (2:9.2.0461-1deepin1) unstable; urgency=medium
+vim (2:9.2.0524-1) unstable; urgency=medium
 
-  * Set-NoDisplay-true-for-vim-desktop.patch
+  * New upstream tag
+    + Security fixes
+      - 9.2.0479: command injection in tar plugin (Closes: #1136803,
+        CVE-2026-46483)
+      - 9.2.0480: command injection in netrw via mf command (Closes: #1136828,
+        CVE-2026-43961)
+  * debian/rules:
+    + Disable gtk4 configure check until new UI stabilizes
+    + Remove obsolete --enable-sockerserver switch
 
- -- Tianyu Chen <sweetyfish@deepin.org>  Thu, 14 May 2026 11:50:36 +0800
+ -- James McCoy <jamessan@debian.org>  Sat, 23 May 2026 22:34:42 -0400
 
 vim (2:9.2.0461-1) unstable; urgency=medium
 

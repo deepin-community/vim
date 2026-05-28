@@ -1759,11 +1759,12 @@ set_cmd_index(char_u *cmd, exarg_T *eap, expand_T *xp, int *complp)
     // Isolate the command and search for it in the command table.
     // Exceptions:
     // - the 'k' command can directly be followed by any character, but do
-    // accept "keepmarks", "keepalt" and "keepjumps". As fuzzy matching can
-    // find matches anywhere in the command name, do this only for command
-    // expansion based on regular expression and not for fuzzy matching.
+    // accept "keepmarks", "keepalt" and "keepjumps". Bypass also when
+    // 'ignorecase' is set so a lowercase ":kz" still completes a user
+    // command like :Kz (#20241), and for fuzzy matching as that can find
+    // matches anywhere in the command name.
     // - the 's' command can be followed directly by 'c', 'g', 'i', 'I' or 'r'
-    if (!fuzzy && (*cmd == 'k' && cmd[1] != 'e'))
+    if (!fuzzy && !p_ic && (*cmd == 'k' && cmd[1] != 'e'))
     {
 	eap->cmdidx = CMD_k;
 	p = cmd + 1;
@@ -4914,7 +4915,7 @@ copy_substring_from_pos(pos_T *start, pos_T *end, char_u **match,
 	    line = ml_get(lnum);
 	    linelen = (int)ml_get_len(lnum);
 	    if (ga_grow(&ga, linelen + 2) != OK)
-		return FAIL;
+		goto fail;
 	    ga_concat_len(&ga, line, linelen);
 	    if (exacttext)
 		GA_CONCAT_LITERAL(&ga, "\\n");
@@ -5141,8 +5142,8 @@ expand_pattern_in_buf(
 	}
 
 	// Extract the matching text prepended to completed word
-	if (!copy_substring_from_pos(&cur_match_pos, &end_match_pos, &full_match,
-		    &word_end_pos))
+	if (copy_substring_from_pos(&cur_match_pos, &end_match_pos, &full_match,
+		    &word_end_pos) == FAIL)
 	    break;
 
 	if (exacttext)
@@ -5183,7 +5184,10 @@ expand_pattern_in_buf(
 	if (match != NULL)
 	{
 	    if (ga_grow(&ga, 1) == FAIL)
+	    {
+		VIM_CLEAR(match);
 		goto cleanup;
+	    }
 	    ((char_u **)ga.ga_data)[ga.ga_len++] = match;
 	    if (ga.ga_len > TAG_MANY)
 		break;
