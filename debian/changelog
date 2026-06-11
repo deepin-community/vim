@@ -1,13 +1,15 @@
 vim (2:9.2.0461-1deepin2) unstable; urgency=medium
 
-  * Fix CVE-2026-47162: Code injection in netrw NetrwBookHistSave
-    function   - Properly quote directory names using string() to
-    prevent injection
-  * Fix CVE-2026-47167: Code injection in cucumber filetype plugin   -
-    Use Ruby Regexp.new() with untrusted pattern to prevent injection
-  * Fix memory safety issues in spellfile.c   - Add recursion limit to
-    read_tree_node(), add length limit check     in tree_count_words(),
-    use alloc_clear() in spell_read_tree()
+  * Fix CVE-2026-47162: Code injection in netrw NetrwBookHistSave function
+    - Properly quote directory names using string() to prevent injection
+  * Fix CVE-2026-47167: Code injection in cucumber filetype plugin
+    - Use Ruby Regexp.new() with untrusted pattern to prevent injection
+  * Fix memory safety issues in spellfile.c
+    - Add recursion limit to read_tree_node(), add length limit check
+      in tree_count_words(), use alloc_clear() in spell_read_tree()
+
+  * Fix CVE-2026-52858: possible code execution with python3complete   -
+    Disable execution of import/from statements
 
  -- deepin-ci-robot <packages@deepin.org>  Thu, 11 Jun 2026 22:41:37 +0800
 
