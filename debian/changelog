@@ -10,6 +10,8 @@ vim (2:9.2.0461-1deepin2) unstable; urgency=medium
 
   * Fix CVE-2026-52858: possible code execution with python3complete   -
     Disable execution of import/from statements
+  * Fix CVE-2026-52860: possible code execution with python complete   -
+    Strip default expressions and annotations from generated source
 
  -- deepin-ci-robot <packages@deepin.org>  Thu, 11 Jun 2026 22:41:37 +0800
 
