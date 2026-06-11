@@ -1,0 +1,243 @@
+Index: vim/src/terminal.c
+===================================================================
+--- vim.orig/src/terminal.c
++++ vim/src/terminal.c
+@@ -2265,7 +2265,8 @@ update_snapshot(term_T *term)
+ 			    int	    i;
+ 			    int	    c;
+ 
+-			    for (i = 0; (c = cell.chars[i]) > 0 || i == 0; ++i)
++			    for (i = 0; i < VTERM_MAX_CHARS_PER_CELL &&
++				    ((c = cell.chars[i]) > 0 || i == 0); ++i)
+ 				ga.ga_len += utf_char2bytes(c == NUL ? ' ' : c,
+ 					     (char_u *)ga.ga_data + ga.ga_len);
+ 			}
+Index: vim/src/testdir/samples/combining_chars.txt
+===================================================================
+--- /dev/null
++++ vim/src/testdir/samples/combining_chars.txt
+@@ -0,0 +1,200 @@
++á́́́́
++á́́́́
++á́́́́
++á́́́́
++á́́́́
++á́́́́
++á́́́́
++á́́́́
++á́́́́
++á́́́́
++á́́́́
++á́́́́
++á́́́́
++á́́́́
++á́́́́
++á́́́́
++á́́́́
++á́́́́
++á́́́́
++á́́́́
++á́́́́
++á́́́́
++á́́́́
++á́́́́
++á́́́́
++á́́́́
++á́́́́
++á́́́́
++á́́́́
++á́́́́
++á́́́́
++á́́́́
++á́́́́
++á́́́́
++á́́́́
++á́́́́
++á́́́́
++á́́́́
++á́́́́
++á́́́́
++á́́́́
++á́́́́
++á́́́́
++á́́́́
++á́́́́
++á́́́́
++á́́́́
++á́́́́
++á́́́́
++á́́́́
++á́́́́
++á́́́́
++á́́́́
++á́́́́
++á́́́́
++á́́́́
++á́́́́
++á́́́́
++á́́́́
++á́́́́
++á́́́́
++á́́́́
++á́́́́
++á́́́́
++á́́́́
++á́́́́
++á́́́́
++á́́́́
++á́́́́
++á́́́́
++á́́́́
++á́́́́
++á́́́́
++á́́́́
++á́́́́
++á́́́́
++á́́́́
++á́́́́
++á́́́́
++á́́́́
++á́́́́
++á́́́́
++á́́́́
++á́́́́
++á́́́́
++á́́́́
++á́́́́
++á́́́́
++á́́́́
++á́́́́
++á́́́́
++á́́́́
++á́́́́
++á́́́́
++á́́́́
++á́́́́
++á́́́́
++á́́́́
++á́́́́
++á́́́́
++á́́́́
++á́́́́
++á́́́́
++á́́́́
++á́́́́
++á́́́́
++á́́́́
++á́́́́
++á́́́́
++á́́́́
++á́́́́
++á́́́́
++á́́́́
++á́́́́
++á́́́́
++á́́́́
++á́́́́
++á́́́́
++á́́́́
++á́́́́
++á́́́́
++á́́́́
++á́́́́
++á́́́́
++á́́́́
++á́́́́
++á́́́́
++á́́́́
++á́́́́
++á́́́́
++á́́́́
++á́́́́
++á́́́́
++á́́́́
++á́́́́
++á́́́́
++á́́́́
++á́́́́
++á́́́́
++á́́́́
++á́́́́
++á́́́́
++á́́́́
++á́́́́
++á́́́́
++á́́́́
++á́́́́
++á́́́́
++á́́́́
++á́́́́
++á́́́́
++á́́́́
++á́́́́
++á́́́́
++á́́́́
++á́́́́
++á́́́́
++á́́́́
++á́́́́
++á́́́́
++á́́́́
++á́́́́
++á́́́́
++á́́́́
++á́́́́
++á́́́́
++á́́́́
++á́́́́
++á́́́́
++á́́́́
++á́́́́
++á́́́́
++á́́́́
++á́́́́
++á́́́́
++á́́́́
++á́́́́
++á́́́́
++á́́́́
++á́́́́
++á́́́́
++á́́́́
++á́́́́
++á́́́́
++á́́́́
++á́́́́
++á́́́́
++á́́́́
++á́́́́
++á́́́́
++á́́́́ጁ
++á́́́́ጁ
++á́́́́ጁ
++á́́́́ጁ
++á́́́́ጁ
++á́́́́ጁ
++á́́́́ጁ
++á́́́́ጁ
++á́́́́ጁ
++á́́́́ጁ
+Index: vim/src/testdir/test_terminal3.vim
+===================================================================
+--- vim.orig/src/testdir/test_terminal3.vim
++++ vim/src/testdir/test_terminal3.vim
+@@ -1241,4 +1241,19 @@ func Test_terminal_csi_args_overflow()
+   call StopVimInTerminal(buf)
+ endfunc
+ 
++func Test_terminal_output_combining_chars()
++  CheckUnix
++  new
++  let cmd = "cat samples/combining_chars.txt"
++  let buf = term_start(cmd, {'curwin': 1, 'term_finish': 'open', 'term_rows': 10, 'term_cols': 30})
++  call WaitForAssert({-> assert_match('finished', term_getstatus(buf))})
++  call TermWait(buf)
++  let lines = getbufline(buf, 1, '$')
++  " get byte lengths to confirm combining chars present
++  let lens = map(copy(lines), 'len(v:val)')
++  let expected = repeat([11], 190) + repeat([14], 10)
++  call assert_equal(expected, lens)
++  bw!
++endfunc
++
+ " vim: shiftwidth=2 sts=2 expandtab
