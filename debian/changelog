@@ -15,6 +15,9 @@ vim (2:9.2.0461-1deepin2) unstable; urgency=medium
   * Fix out-of-bounds read in update_snapshot()   - Bound the loop with
     i < VTERM_MAX_CHARS_PER_CELL to prevent     reading past array
     bounds
+  * Fix shellescape() calls in getscript/vimball/rust   - Pass 1 as
+    second argument to shellescape() in :! command contexts     to
+    prevent potential command injection
 
  -- deepin-ci-robot <packages@deepin.org>  Thu, 11 Jun 2026 22:41:37 +0800
 
