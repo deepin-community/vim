@@ -1,4 +1,12 @@
 debian/Support-sourcing-a-vimrc.tiny-when-Vim-is-invoked-as-vi.patch
 debian/Detect-the-rst-filetype-using-the-contents-of-the-file.patch
 debian/Add-recognition-of-more-LaTeX-commands-for-tex-filetype-d.patch
+CVE-2026-47162-netrw-book-history-injection.patch
+CVE-2026-47167-cucumber-code-injection.patch
+security-patch-9.2.0513-spellfile-memory-safety.patch
+CVE-2026-52858-python3complete-code-execution.patch
+security-patch-9.2.0565-update-snapshot-oob-read.patch
+CVE-2026-52860-python-complete-code-execution.patch
+security-patch-9.2-shellescape-getscript-vimball-rust.patch
+security-patch-ccfilter-unbounded-strcat.patch
 Set-NoDisplay-true-for-vim-desktop.patch
