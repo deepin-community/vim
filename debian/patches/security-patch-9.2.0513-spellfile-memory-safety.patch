@@ -1,0 +1,196 @@
+Index: vim/src/spell.h
+===================================================================
+--- vim.orig/src/spell.h
++++ vim/src/spell.h
+@@ -119,6 +119,7 @@ struct slang_S
+     // Info from the .sug file.  Loaded on demand.
+     time_t	sl_sugtime;	// timestamp for .sug file
+     char_u	*sl_sbyts;	// soundfolded word bytes
++    long	sl_sbyts_len;	// length of sl_sbyts
+     idx_T	*sl_sidxs;	// soundfolded word indexes
+     buf_T	*sl_sugbuf;	// buffer with word number table
+     int		sl_sugloaded;	// TRUE when .sug file was loaded or failed to
+Index: vim/src/spellfile.c
+===================================================================
+--- vim.orig/src/spellfile.c
++++ vim/src/spellfile.c
+@@ -313,7 +313,7 @@ static int set_sofo(slang_T *lp, char_u *from, char_u *to);
+ static void set_sal_first(slang_T *lp);
+ static int *mb_str2wide(char_u *s);
+ static int spell_read_tree(FILE *fd, char_u **bytsp, long *bytsp_len, idx_T **idxsp, int prefixtree, int prefixcnt);
+-static idx_T read_tree_node(FILE *fd, char_u *byts, idx_T *idxs, int maxidx, idx_T startidx, int prefixtree, int maxprefcondnr);
++static idx_T read_tree_node(FILE *fd, char_u *byts, idx_T *idxs, int maxidx, idx_T startidx, int prefixtree, int maxprefcondnr, int depth);
+ static void set_spell_charflags(char_u *flags, int cnt, char_u *upp);
+ static int set_spell_chartab(char_u *fol, char_u *low, char_u *upp);
+ static void set_map_str(slang_T *lp, char_u *map);
+@@ -597,7 +597,7 @@ endOK:
+  * Returns the total number of words.
+  */
+     static void
+-tree_count_words(char_u *byts, idx_T *idxs)
++tree_count_words(char_u *byts, long byts_len, idx_T *idxs)
+ {
+     int		depth;
+     idx_T	arridx[MAXWLEN];
+@@ -635,8 +635,8 @@ tree_count_words(char_u *byts, idx_T *idxs)
+ 		++wordcount[depth];
+ 
+ 		// Skip over any other NUL bytes (same word with different
+-		// flags).
+-		while (byts[n + 1] == 0)
++		// flags).  But don't go over the end
++		while (n + 1 < byts_len && byts[n + 1] == 0)
+ 		{
+ 		    ++n;
+ 		    ++curi[depth];
+@@ -732,8 +732,8 @@ suggest_load_files(void)
+ 	     * <SUGWORDTREE>: <wordtree>
+ 	     * Read the trie with the soundfolded words.
+ 	     */
+-	    if (spell_read_tree(fd, &slang->sl_sbyts, NULL, &slang->sl_sidxs,
+-							       FALSE, 0) != 0)
++	    if (spell_read_tree(fd, &slang->sl_sbyts, &slang->sl_sbyts_len,
++			&slang->sl_sidxs, FALSE, 0) != 0)
+ 	    {
+ someerror:
+ 		semsg(_(e_error_while_reading_sug_file_str),
+@@ -782,8 +782,10 @@ someerror:
+ 	     * Need to put word counts in the word tries, so that we can find
+ 	     * a word by its number.
+ 	     */
+-	    tree_count_words(slang->sl_fbyts, slang->sl_fidxs);
+-	    tree_count_words(slang->sl_sbyts, slang->sl_sidxs);
++	    tree_count_words(slang->sl_fbyts, slang->sl_fbyts_len,
++		    slang->sl_fidxs);
++	    tree_count_words(slang->sl_sbyts, slang->sl_sbyts_len,
++		    slang->sl_sidxs);
+ 
+ nextone:
+ 	    if (fd != NULL)
+@@ -1603,8 +1605,11 @@ spell_read_tree(
+     if (len <= 0)
+ 	return 0;
+ 
+-    // Allocate the byte array.
+-    bp = alloc(len);
++    // Allocate the byte array.  Zero-initialize so that any position the
++    // tree does not visit reads as 0; a stray BY_INDEX shared reference
++    // into such a slot then behaves as end-of-word in spellsuggest()
++    // instead of consuming an arbitrary heap byte as a siblingcount.
++    bp = alloc_clear(len);
+     if (bp == NULL)
+ 	return SP_OTHERERROR;
+     *bytsp = bp;
+@@ -1618,9 +1623,11 @@ spell_read_tree(
+     *idxsp = ip;
+ 
+     // Recursively read the tree and store it in the array.
+-    idx = read_tree_node(fd, bp, ip, len, 0, prefixtree, prefixcnt);
++    idx = read_tree_node(fd, bp, ip, len, 0, prefixtree, prefixcnt, 0);
+     if (idx < 0)
+ 	return idx;
++    if (idx != len)
++	return SP_FORMERROR;
+     return 0;
+ }
+ 
+@@ -1642,7 +1649,8 @@ read_tree_node(
+     int		maxidx,		    // size of arrays
+     idx_T	startidx,	    // current index in "byts" and "idxs"
+     int		prefixtree,	    // TRUE for reading PREFIXTREE
+-    int		maxprefcondnr)	    // maximum for <prefcondnr>
++    int		maxprefcondnr,	    // maximum for <prefcondnr>
++    int		depth)		    // recursiong level
+ {
+     int		len;
+     int		i;
+@@ -1652,6 +1660,12 @@ read_tree_node(
+     int		c2;
+ #define SHARED_MASK	0x8000000
+ 
++    // Bail out on a crafted .spl whose tree recurses beyond the maximum
++    // word length: each tree level corresponds to one byte of a word, so
++    // any well-formed file has depth <= MAXWLEN.
++    if (depth > MAXWLEN)
++	return SP_FORMERROR;
++
+     len = getc(fd);					// <siblingcount>
+     if (len <= 0)
+ 	return SP_TRUNCERROR;
+@@ -1737,7 +1751,7 @@ read_tree_node(
+ 	    {
+ 		idxs[startidx + i] = idx;
+ 		idx = read_tree_node(fd, byts, idxs, maxidx, idx,
+-						     prefixtree, maxprefcondnr);
++					prefixtree, maxprefcondnr, depth + 1);
+ 		if (idx < 0)
+ 		    break;
+ 	    }
+@@ -5649,7 +5663,7 @@ sug_filltree(spellinfo_T *spin, slang_T *slang)
+ 		spin->si_blocks_cnt = 0;
+ 
+ 		// Skip over any other NUL bytes (same word with different
+-		// flags).  But don't go over the end.
++		// flags).  But don't go over the end
+ 		while (n + 1 < slang->sl_fbyts_len && byts[n + 1] == 0)
+ 		{
+ 		    ++n;
+Index: vim/src/testdir/test_spell.vim
+===================================================================
+--- vim.orig/src/testdir/test_spell.vim
++++ vim/src/testdir/test_spell.vim
+@@ -912,7 +912,10 @@ func Test_spellsuggest_too_deep()
+   " This was incrementing "depth" over MAXWLEN.
+   new
+   norm s000G00�000000000000
+-  sil norm ..vzG................vvzG0     v z=
++  try
++    sil norm ..vzG................vvzG0     v z=
++  catch /E759:/
++  endtry
+   bwipe!
+ endfunc
+ 
+Index: vim/src/testdir/test_spellfile.vim
+===================================================================
+--- vim.orig/src/testdir/test_spellfile.vim
++++ vim/src/testdir/test_spellfile.vim
+@@ -372,6 +372,24 @@ func Test_spellfile_format_error()
+   " LWORDTREE: incorrect sibling node count
+   call Spellfile_Test(0zFF00000001040000000000000000, 'E759:')
+ 
++  " LWORDTREE: declared nodecount larger than the tree actually fills.
++  " Root has two siblings: 'x' (recurses into an end-of-word at idx 3..4)
++  " and BY_INDEX targeting position 9.  Tree fills positions 0..4, leaving
++  " 5..9 unwritten — byts[9] would be uninitialized without the fix.
++  call Spellfile_Test(0zFF0000000A02780100000979010000000000000000000000, 'E759:')
++
++  " LWORDTREE: recursion depth past MAXWLEN.  A linear chain of 254
++  " (siblingcount=1, byte='a') frames drives read_tree_node to depth
++  " MAXWLEN where the new guard rejects.  The trailing (01 00) gives the
++  " chain a clean end-of-word so an *unguarded* parser would accept the
++  " file silently — that's what makes this a meaningful regression test
++  " for the depth check specifically (a deeper chain would also crash
++  " unguarded builds via stack overflow, which we don't want in CI).
++  let v = eval('0zFF00000200' .. repeat('0161', 255)
++               \ .. '0100' ..  repeat('00', 8))
++
++  call Spellfile_Test(v, 'E759:')
++
+   " KWORDTREE: missing tree node
+   call Spellfile_Test(0zFF0000000000000004, 'E758:')
+ 
+Index: vim/src/version.c
+===================================================================
+--- vim.orig/src/version.c
++++ vim/src/version.c
+@@ -729,6 +729,8 @@ static char *(features[]) =
+ 
+ static int included_patches[] =
+ {   /* Add new patch number below this line */
++/**/
++    513,
+ /**/
+     512,
+ /**/
+
