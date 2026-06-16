@@ -1,3 +1,9 @@
+vim (2:9.2.0524-1deepin1) unstable; urgency=medium
+
+  * Set-NoDisplay-true-for-vim-desktop.patch
+
+ -- lichenggang <lichenggang@deepin.org>  Tue, 16 Jun 2026 20:27:15 +0800
+
 vim (2:9.2.0524-1) unstable; urgency=medium
 
   * New upstream tag
