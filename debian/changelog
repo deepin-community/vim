@@ -1,3 +1,11 @@
+vim (2:9.2.0524-1deepin2) unstable; urgency=medium
+
+  * CVE-2026-57456: fix code execution with python complete
+    Fix possible arbitrary code execution via Vim's Python omni-completion
+    by using repr() on doc strings instead of wrapping them in triple quotes.
+
+ -- deepin-ci-robot <packages@deepin.org>  Fri, 26 Jun 2026 17:10:00 +0800
+
 vim (2:9.2.0524-1deepin1) unstable; urgency=medium
 
   * Set-NoDisplay-true-for-vim-desktop.patch
