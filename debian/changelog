@@ -1,3 +1,11 @@
+vim (2:9.2.0524-1deepin2) unstable; urgency=medium
+
+  * CVE-2026-57456: fix code execution with python complete
+    Fix possible arbitrary code execution via Vim's Python omni-completion
+    by using repr() on doc strings instead of wrapping them in triple quotes.
+
+ -- deepin-ci-robot <packages@deepin.org>  Wed, 01 Jul 2026 13:59:24 +0800
+
 vim (2:9.2.0524-1deepin1) unstable; urgency=medium
 
   * Set-NoDisplay-true-for-vim-desktop.patch
@@ -5300,7 +5308,8 @@ vim (1:6.1-474+1) unstable; urgency=low
       ":colorscheme <tab>" results in "zellner" instead of the first
       entry. (Anand Hariharan)
     + 6.1.349: "vim --serverlist" when no server was ever started gives
-      an error message without "\n". "vim --serverlist" doesn't exit when
+      an error message without "
+". "vim --serverlist" doesn't exit when
       the X server can't be contacted, it starts Vim unexpectedly.
     + 6.1.350: When entering a buffer with ":bnext" for the first time,
       using an autocommand to restore the last used cursor position
@@ -5311,7 +5320,8 @@ vim (1:6.1-474+1) unstable; urgency=low
     + 6.1.353: Problem with drawing Arabic characters.
     + 6.1.354: MS-Windows 98: Notepad can't paste text copied from Vim when
       'encoding' is "utf-8".
-    + 6.1.355: In a regexp '\n' will never match anything in a string.
+    + 6.1.355: In a regexp '
+' will never match anything in a string.
     + 6.1.356: Compiler warnings for using convert_setup() and a few
       other things.
     + 6.1.357: CR in the quickfix window jumps to the error under the
@@ -6236,7 +6246,7 @@ vim (6.0.270-1) unstable; urgency=low
       comment just above the match to be found.
     + 6.0.232: "vim --version" prints on stderr while "vim --help" prints
       on stdout.
-    + 6.0.233: "\1\{,8}" in a regexp is not allowed, but it should work,
+    + 6.0.233: "\{,8}" in a regexp is not allowed, but it should work,
       because there is an upper limit.
     + 6.0.234: It's not easy to set the cursor position without modifying
       marks.
@@ -6404,7 +6414,8 @@ vim (6.0.201-1) unstable; urgency=low
     + 6.0.166: GUI: There is no way to avoid dialogs to pop up.
     + 6.0.167: When 'fileencodings' is "latin2" some characters in the help
       files are displayed wrong.
-    + 6.0.168: ":%s/\n/#/" doesn't replace at an empty line.
+    + 6.0.168: ":%s/
+/#/" doesn't replace at an empty line.
     + 6.0.169: When run as evim and the GUI can't be started we get stuck in a
       terminal without menus in Insert mode.
     + 6.0.170: When printing double-width characters the size of tabs after
@@ -6804,7 +6815,7 @@ vim (6.0.027-1) unstable; urgency=low
                command starting with "g" isn't adjusted.
     + 6.0.023: Loading the lhaskell syntax doesn't work.
     + 6.0.024: Using "CTRL-V u 9900" in Insert mode may cause a crash.
-    + 6.0.025: The pattern "\vx(.|$)" doesn't match "x" at the end of a
+    + 6.0.025: The pattern "x(.|$)" doesn't match "x" at the end of a
                line.
     + 6.0.026: GTK: When using arrow keys to navigate through the menus,
                the separators are selected.
