@@ -1,3 +1,14 @@
+vim (2:9.2.0524-1deepin2) unstable; urgency=medium
+
+  * CVE-2026-52858: Fix possible code execution via python3complete
+    import/from statements.
+  * CVE-2026-52860: Fix possible code execution via pythoncomplete
+    exec() of reconstructed definitions.
+  * CVE-2026-57456: Fix possible code execution via pythoncomplete
+    docstring triple-quote escaping.
+
+ -- deepin-ci-robot <packages@deepin.org>  Wed, 01 Jul 2026 14:20:00 +0800
+
 vim (2:9.2.0524-1deepin1) unstable; urgency=medium
 
   * Set-NoDisplay-true-for-vim-desktop.patch

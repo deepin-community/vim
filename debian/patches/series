@@ -2,3 +2,6 @@ debian/Support-sourcing-a-vimrc.tiny-when-Vim-is-invoked-as-vi.patch
 debian/Detect-the-rst-filetype-using-the-contents-of-the-file.patch
 debian/Add-recognition-of-more-LaTeX-commands-for-tex-filetype-d.patch
 Set-NoDisplay-true-for-vim-desktop.patch
+CVE-2026-52858.patch
+CVE-2026-52860.patch
+CVE-2026-57456.patch
