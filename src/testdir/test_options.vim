@@ -663,6 +663,9 @@ func Test_set_completion_string_values()
   call feedkeys(":set completepopup=height:10,align:\<Tab>\<C-B>\"\<CR>", 'xt')
   call assert_equal('"set completepopup=height:10,align:item', @:)
   call assert_equal([], getcompletion('set completepopup=bogusname:', 'cmdline'))
+  call assert_equal(['on', 'off'], getcompletion('set completepopup=close:', 'cmdline'))
+  call assert_equal(['on', 'off'], getcompletion('set completepopup=close:o', 'cmdline'))
+  call assert_equal(['off'], getcompletion('set previewpopup=close:of', 'cmdline'))
 
   " opacity: numeric, 0..100 only
   call assert_true(index(getcompletion('set completepopup=', 'cmdline'),
@@ -2471,6 +2474,13 @@ func Test_opt_scrolljump()
   call assert_equal({'lnum':11, 'leftcol':0, 'col':0, 'topfill':0,
          \            'topline':5, 'coladd':0, 'skipcol':0, 'curswant':0},
          \           winsaveview())
+
+  norm! 100Gzt
+  set scrolljump=-100
+  norm! 20k
+  call assert_equal({'lnum':80, 'leftcol':0, 'col':0, 'topfill':0,
+        \            'topline':71, 'coladd':0, 'skipcol':0, 'curswant':0},
+        \           winsaveview())
 
   set scrolljump&
   bw

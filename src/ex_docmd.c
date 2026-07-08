@@ -3092,6 +3092,9 @@ parse_command_modifiers(
 				      _(e_legacy_must_be_followed_by_command);
 				return FAIL;
 			    }
+			    // Make sure we do not have both legacy and Vim9
+			    // flags set at the same time.
+			    cmod->cmod_flags &= ~CMOD_VIM9CMD;
 			    cmod->cmod_flags |= CMOD_LEGACY;
 			    continue;
 			}
@@ -3177,6 +3180,9 @@ parse_command_modifiers(
 				      _(e_vim9cmd_must_be_followed_by_command);
 				return FAIL;
 			    }
+			    // Make sure we do not have both legacy and Vim9
+			    // flags set at the same time.
+			    cmod->cmod_flags &= ~CMOD_LEGACY;
 			    cmod->cmod_flags |= CMOD_VIM9CMD;
 			    continue;
 			}
@@ -4024,6 +4030,13 @@ find_ex_command(
     // ":fina" means ":finally" in legacy script, for backwards compatibility.
     if (eap->cmdidx == CMD_final && p - eap->cmd == 4 && !vim9)
 	eap->cmdidx = CMD_finally;
+
+     // Force ":ho" to be unresolved.  Without this, find_ex_command()
+     // matches it to CMD_horizontal (the only "ho*" entry), which makes
+     // fullcommand("ho") return "horizontal" even though ":ho" cannot be
+     // used as the modifier (cmdmods[] requires 3 chars, "hor").
+    if (eap->cmdidx == CMD_horizontal && p - eap->cmd == 2)
+	eap->cmdidx = CMD_SIZE;
 
 #ifdef FEAT_EVAL
     if (eap->cmdidx < CMD_SIZE

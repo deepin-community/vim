@@ -1806,9 +1806,9 @@ do_source_ext(
     sticky_cmdmod_flags = 0;
 
     save_current_sctx = current_sctx;
-    if (cmdmod.cmod_flags & CMOD_VIM9CMD)
-	// When the ":vim9cmd" command modifier is used, source the script as a
-	// Vim9 script.
+    if ((cmdmod.cmod_flags & CMOD_VIM9CMD) && cookie.source_from_buf)
+	// When the ":vim9cmd" command modifier is used, source buffer lines as
+	// Vim9 script
 	current_sctx.sc_version = SCRIPT_VERSION_VIM9;
     else
 	current_sctx.sc_version = 1;  // default script version
@@ -2342,31 +2342,46 @@ f_getscriptinfo(typval_T *argvars, typval_T *rettv)
 	    continue;
 
 	if ((d = dict_alloc()) == NULL
-		|| list_append_dict(l, d) == FAIL
-		|| dict_add_string(d, "name", si->sn_name) == FAIL
+		|| list_append_dict(l, d) == FAIL)
+	{
+	    dict_unref(d);
+	    goto theend;
+	}
+	if (dict_add_string(d, "name", si->sn_name) == FAIL
 		|| dict_add_number(d, "sid", i) == FAIL
 		|| dict_add_number(d, "sourced", si->sn_sourced_sid) == FAIL
 		|| dict_add_number(d, "version", si->sn_version) == FAIL
 		|| dict_add_bool(d, "autoload",
 				si->sn_state == SN_STATE_NOT_LOADED) == FAIL)
-	    return;
+	    goto theend;
 
 	// When a script ID is specified, return information about only the
 	// specified script, and add the script-local variables and functions.
 	if (sid > 0)
 	{
 	    dict_T	*var_dict;
+	    list_T	*fn_list;
 
 	    var_dict = dict_copy(&si->sn_vars->sv_dict, TRUE, TRUE,
 								get_copyID());
-	    if (var_dict == NULL
-		    || dict_add_dict(d, "variables", var_dict) == FAIL
-		    || dict_add_list(d, "functions",
-					get_script_local_funcs(sid)) == FAIL)
-		return;
+	    if (var_dict == NULL)
+		goto theend;
+	    if (dict_add_dict(d, "variables", var_dict) == FAIL)
+	    {
+		dict_unref(var_dict);
+		goto theend;
+	    }
+	    --var_dict->dv_refcount;
+	    fn_list = get_script_local_funcs(sid);
+	    if (fn_list == NULL || dict_add_list(d, "functions", fn_list) == FAIL)
+	    {
+		list_unref(fn_list);
+		goto theend;
+	    }
 	}
     }
 
+theend:
     vim_regfree(regmatch.regprog);
     vim_free(pat);
 }

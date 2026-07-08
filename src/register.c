@@ -181,12 +181,11 @@ valid_yank_reg(
     if (       (regname > 0 && ASCII_ISALNUM(regname))
 	    || (!writing && vim_strchr((char_u *)
 #ifdef FEAT_EVAL
-				    "/.%:="
+				    "/#.%:="
 #else
-				    "/.%:"
+				    "/#.%:"
 #endif
 					, regname) != NULL)
-	    || regname == '#'
 	    || regname == '"'
 	    || regname == '-'
 	    || regname == '_'
@@ -1190,6 +1189,11 @@ put_do_autocmd(
     if (recursive || regname == '_')
 	return;
 
+    if (regname != '.' && insert == NULL
+	    && reg == NULL)
+	// Can happen when pasting text in normal mode in a terminal buffer
+	return;
+
     v_event = get_v_event(&save_v_event);
 
     list = list_alloc();
@@ -1219,7 +1223,6 @@ put_do_autocmd(
     }
     else
     {
-	assert(reg != NULL);
 	for (n = 0; n < reg->y_size; n++)
 	    list_append_string(list, reg->y_array[n].string,
 		    (int)reg->y_array[n].length);
@@ -2755,7 +2758,7 @@ ex_display(exarg_T *eap)
     }
 
     // display alternate file name
-    if ((arg == NULL || vim_strchr(arg, '%') != NULL) && !got_int)
+    if ((arg == NULL || vim_strchr(arg, '#') != NULL) && !got_int)
     {
 	char_u	    *fname;
 	linenr_T    dummy;
@@ -3089,7 +3092,7 @@ write_reg_contents_lst(
 {
     yankreg_T  *old_y_previous, *old_y_current;
 
-    if (name == '/' || name == '=')
+    if (name == '/' || name == '=' || name == '#')
     {
 	char_u	*s;
 
@@ -3097,7 +3100,7 @@ write_reg_contents_lst(
 	    s = (char_u *)"";
 	else if (strings[1] != NULL)
 	{
-	    emsg(_(e_search_pattern_and_expression_register_may_not_contain_two_or_more_lines));
+	    semsg(_(e_register_char_cannot_contain_multiple_lines), name);
 	    return;
 	}
 	else
@@ -3148,6 +3151,12 @@ write_reg_contents_ex(
 
     if (name == '#')
     {
+	if (len == 0)
+	{
+	  curwin->w_alt_fnum = 0; // clear altfile
+	  return;
+	}
+
 	buf_T	*buf;
 
 	if (VIM_ISDIGIT(*str))

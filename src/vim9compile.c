@@ -1170,9 +1170,15 @@ compile_nested_function(exarg_T *eap, cctx_T *cctx, garray_T *lines_to_free)
 	lvar = reserve_local(cctx, func_name, name_end - name_start,
 					    ASSIGN_CONST, ufunc->uf_func_type);
 	if (lvar == NULL)
+	{
+	    func_ptr_unref(ufunc);
 	    goto theend;
+	}
 	if (generate_FUNCREF(cctx, ufunc, NULL, FALSE, 0, &funcref_isn_idx) == FAIL)
+	{
+	    func_ptr_unref(ufunc);
 	    goto theend;
+	}
 	r = generate_STORE(cctx, ISN_STORE, lvar->lv_idx, NULL);
     }
 
@@ -1475,7 +1481,7 @@ valid_dest_reg(int name)
 {
     if (name == '@')
        name = '"';
-    if (name == '/' || name == '=' || valid_yank_reg(name, TRUE))
+    if (name == '/' || name == '=' || name == '#' || valid_yank_reg(name, TRUE))
 	return TRUE;
     emsg_invreg(name);
     return FAIL;
@@ -1949,7 +1955,8 @@ compile_lhs_var_dest(
     int		cmdidx,
     char_u	*var_start,
     char_u	*var_end,
-    int		is_decl)
+    int		is_decl,
+    int		has_cmd)	// "var" before "var_start"
 {
     int	    declare_error = FALSE;
 
@@ -2004,8 +2011,8 @@ compile_lhs_var_dest(
 		char_u *p = skipwhite(lhs->lhs_end);
 		if (p[0] == '.' && p[1] == '=')
 		    emsg(_(e_dot_equal_not_supported_with_script_version_two));
-		else if (p[0] == ':')
-		    // type specified in a non-var assignment
+		else if (p[0] == ':' && !has_cmd)
+		    // type specified in an assignment without "var"
 		    semsg(_(e_trailing_characters_str), p);
 		else
 		    semsg(_(e_variable_already_declared_str), lhs->lhs_name);
@@ -2309,7 +2316,7 @@ compile_lhs(
     {
 	// compile the LHS destination
 	if (compile_lhs_var_dest(cctx, lhs, cmdidx, var_start, var_end,
-							is_decl) == FAIL)
+						is_decl, has_cmd) == FAIL)
 	    return FAIL;
     }
 
@@ -5231,7 +5238,7 @@ delete_def_function_contents(dfunc_T *dfunc, int mark_deleted)
     void
 unlink_def_function(ufunc_T *ufunc)
 {
-    if (ufunc->uf_dfunc_idx <= 0)
+    if (ufunc->uf_dfunc_idx <= 0 || def_functions.ga_data == NULL)
 	return;
 
     dfunc_T *dfunc = ((dfunc_T *)def_functions.ga_data)

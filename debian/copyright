@@ -127,6 +127,15 @@ Files: runtime/syntax/rust.vim
 Copyright: 2015 The Rust Project Developers
 License: Apache or Expat
 
+Files:
+ runtime/syntax/sshallowedsigners.vim
+ runtime/syntax/sshauthorizedkeys.vim
+ runtime/syntax/sshknownhosts.vim
+ runtime/syntax/sshpublickey.vim
+Copyright:
+ Fionn Fitzmaurice
+License: Apache or Vim
+
 Files: runtime/tools/efm_perl.pl
 Copyright: 2001 Joerg Ziefle <joerg.ziefle@gmx.de>
 License: GPL-1+ or Artistic-1
