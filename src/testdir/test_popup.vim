@@ -723,6 +723,9 @@ func Test_popup_and_preview_autocommand()
     au!
     au BufAdd * nested tab sball
   augroup END
+  " Let pythoncomplete follow the buffer's 'import os' (off by default
+  " since v9.2.0561) so 'os.' can be completed.
+  let g:pythoncomplete_allow_import = 1
   set omnifunc=pythoncomplete#Complete
   call setline(1, 'import os')
   " make the line long
@@ -745,6 +748,7 @@ func Test_popup_and_preview_autocommand()
   augroup END
   augroup! MyBufAdd
   bw!
+  unlet g:pythoncomplete_allow_import
 endfunc
 
 func s:run_popup_and_previewwindow_dump(lines, dumpfile)
@@ -2626,6 +2630,67 @@ func Test_popup_opacity_move_after_close()
   call TermWait(buf, 150)
   call VerifyScreenDump(buf, 'Test_popup_opacity_move_after_close', {})
   call StopVimInTerminal(buf)
+endfunc
+
+" Test pumopt opacity when Pmenu highlight groups are cleared
+func Test_pumopt_opacity_pmenu_cleared()
+  CheckScreendump
+  let lines =<< trim END
+    set pumopt=opacity:50,border:round
+    set completeopt=menu
+    highlight clear
+    highlight clear Pmenu
+    highlight clear PmenuSel
+    highlight Underbg ctermbg=red guibg=red
+    highlight Underfg ctermfg=green guifg=green
+    call setline(1, '')
+    for i in range(10)
+        call append(line('$'), ' X YYY ZZZ X YYY X X X X X X')
+    endfor
+    call matchadd('Underbg', 'YYY')
+    call matchadd('Underfg', 'ZZZ')
+    normal gg
+    inoremap <F5> <Cmd>call complete(col('.'),
+                \ ['item', 'another item', 'and a last one'])<CR>
+  END
+  call writefile(lines, 'Xpumopacitypmenucleared', 'D')
+  let buf = RunVimInTerminal('-S Xpumopacitypmenucleared', {})
+  call TermWait(buf)
+  " light background
+  call term_sendkeys(buf, "i\<F5>")
+  call TermWait(buf, 100)
+  call VerifyScreenDump(buf, 'Test_pumopt_opacity_pmenu_cleared', {})
+  call term_sendkeys(buf, "\<C-E>\<Esc>u")
+  call TermWait(buf)
+  " light termguicolors
+  call term_sendkeys(buf, ":set termguicolors\<CR>")
+  call term_sendkeys(buf, "i\<F5>")
+  call TermWait(buf, 100)
+  call VerifyScreenDump(buf, 'Test_pumopt_opacity_pmenu_cleared_2', {})
+  call term_sendkeys(buf, "\<C-E>\<Esc>u")
+  call TermWait(buf)
+  " dark termguicolors
+  call term_sendkeys(buf, ":set background=dark\<CR>")
+  call term_sendkeys(buf, ":highlight clear Pmenu\<CR>")
+  call term_sendkeys(buf, ":highlight clear PmenuSel\<CR>")
+  call term_sendkeys(buf, "i\<F5>")
+  call TermWait(buf, 100)
+  call VerifyScreenDump(buf, 'Test_pumopt_opacity_pmenu_cleared_3', {})
+  call term_sendkeys(buf, "\<C-E>\<Esc>u")
+  call TermWait(buf)
+  " dark background
+  call term_sendkeys(buf, ":set notermguicolors\<CR>")
+  call term_sendkeys(buf, "i\<F5>")
+  call TermWait(buf, 100)
+  call VerifyScreenDump(buf, 'Test_pumopt_opacity_pmenu_cleared_4', {})
+  call term_sendkeys(buf, "\<C-E>\<Esc>u")
+  call TermWait(buf)
+  call StopVimInTerminal(buf)
+endfunc
+
+func Test_popup_sandbox()
+  call assert_fails('sandbox call popup_create("hello", {})', 'E48:')
+  call assert_fails('sandbox call popup_setoptions(1, {})', 'E48:')
 endfunc
 
 " vim: shiftwidth=2 sts=2 expandtab

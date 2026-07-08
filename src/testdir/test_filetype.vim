@@ -434,6 +434,7 @@ def s:GetFilenameChecks(): dict<list<string>>
     julia: ['file.jl'],
     just: ['justfile', 'Justfile', '.justfile', 'config.just'],
     karel: ['file.kl', 'file.KL'],
+    kawasaki_as: ['file.pg'],
     kconfig: ['Kconfig', 'Kconfig.debug', 'Kconfig.file', 'Config.in', 'Config.in.host'],
     kdl: ['file.kdl'],
     kerml: ['file.kerml'],
@@ -728,7 +729,7 @@ def s:GetFilenameChecks(): dict<list<string>>
     sass: ['file.sass'],
     sbt: ['file.sbt'],
     scala: ['file.scala', 'file.mill'],
-    scheme: ['file.scm', 'file.ss', 'file.sld', 'file.stsg', 'any/local/share/supertux2/config', '.lips_repl_history', '.guile'],
+    scheme: ['file.scm', 'file.ss', 'file.sld', 'file.stwm', 'file.stl', 'file.stxt', 'file.sprite', 'file.strf', 'file.satc', 'file.stcd', 'file.stf', 'file.stcp', 'file.music', 'file.stsg', 'any/local/share/supertux2/config', 'any/supertux2/levels/world1/info', '.lips_repl_history', '.guile'],
     scilab: ['file.sci', 'file.sce'],
     screen: ['.screenrc', 'screenrc'],
     scss: ['file.scss'],
@@ -740,11 +741,12 @@ def s:GetFilenameChecks(): dict<list<string>>
     services: ['/etc/services', 'any/etc/services'],
     setserial: ['/etc/serial.conf', 'any/etc/serial.conf'],
     sexplib: ['file.sexp'],
+    sgf: ['file.sgf'],
     sh: ['.bashrc', '.bash_profile', '.bash-profile', '.bash_logout', '.bash-logout', '.bash_aliases', '.bash-aliases', '.bash_history', '.bash-history',
          '/tmp/bash-fc-3Ozjlw', '/tmp/bash-fc.3Ozjlw', 'PKGBUILD', 'file.bash', '/usr/share/doc/bash-completion/filter.sh',
          '/etc/udev/cdsymlinks.conf', 'any/etc/udev/cdsymlinks.conf', 'file.bats', '.ash_history', 'any/etc/neofetch/config.conf', '.xprofile',
          'user-dirs.defaults', 'user-dirs.dirs', 'makepkg.conf', '.makepkg.conf', 'file.mdd', 'file.cygport', '.envrc', '.envrc.file', 'file.envrc', 'devscripts.conf',
-         '.devscripts', 'file.lo', 'file.la', 'file.lai'],
+         '.devscripts', 'file.lo', 'file.la', 'file.lai', '/etc/X11/xinit/xinitrc', '/etc/X11/xinit/xserverrc', '~/.xinitrc', '/etc/X11/xinit/xinitrc.d/foobar'],
     shaderslang: ['file.slang'],
     sieve: ['file.siv', 'file.sieve'],
     sil: ['file.sil'],
@@ -788,8 +790,12 @@ def s:GetFilenameChecks(): dict<list<string>>
     srec: ['file.s19', 'file.s28', 'file.s37', 'file.mot', 'file.srec'],
     srt: ['file.srt'],
     ssa: ['file.ass', 'file.ssa'],
+    sshallowedsigners: ['any/allowed_signers', 'any/.allowed_signers', 'any/file.allowed_signers'],
+    sshauthorizedkeys: ['any/.ssh/authorized_keys'],
     sshconfig: ['ssh_config', '/.ssh/config', '/etc/ssh/ssh_config.d/file.conf', 'any/etc/ssh/ssh_config.d/file.conf', 'any/.ssh/config', 'any/.ssh/file.conf'],
     sshdconfig: ['sshd_config', '/etc/ssh/sshd_config.d/file.conf', 'any/etc/ssh/sshd_config.d/file.conf'],
+    sshpublickey: ['any/.ssh/file.pub', '/etc/ssh/file.pub'],
+    sshknownhosts: ['any/.ssh/known_hosts', '/etc/ssh/ssh_known_hosts'],
     st: ['file.st'],
     starlark: ['file.ipd', 'file.sky', 'file.star', 'file.starlark'],
     stata: ['file.ado', 'file.do', 'file.imata', 'file.mata'],
@@ -904,6 +910,7 @@ def s:GetFilenameChecks(): dict<list<string>>
     tla: ['file.tla'],
     tli: ['file.tli'],
     tmux: ['tmuxfile.conf', '.tmuxfile.conf', '.tmux-file.conf', '.tmux.conf', 'tmux-file.conf', 'tmux.conf', 'tmux.conf.local'],
+    tolk: ['file.tolk'],
     toml: ['file.toml', 'uv.lock', 'Gopkg.lock', 'Pipfile', '/home/user/.cargo/config', '.black',
            'any/containers/containers.conf', 'any/containers/containers.conf.d/file.conf',
            'any/containers/containers.conf.modules/file.conf', 'any/containers/containers.conf.modules/any/file.conf',
@@ -984,7 +991,7 @@ def s:GetFilenameChecks(): dict<list<string>>
     xml: ['/etc/blkid.tab', '/etc/blkid.tab.old', 'file.xmi', 'file.csproj', 'file.csproj.user', 'file.fsproj', 'file.fsproj.user', 'file.vbproj', 'file.vbproj.user', 'file.ui',
           'file.tpm', '/etc/xdg/menus/file.menu', 'fglrxrc', 'file.xlf', 'file.xliff', 'file.xul', 'file.wsdl', 'file.wpl', 'any/etc/blkid.tab', 'any/etc/blkid.tab.old',
           'any/etc/xdg/menus/file.menu', 'file.atom', 'file.rss', 'file.cdxml', 'file.psc1', 'file.mpd', 'fonts.conf', 'file.xcu', 'file.xlb', 'file.xlc', 'file.xba', 'file.xpr',
-          'file.xpfm', 'file.spfm', 'file.bxml', 'file.mmi', 'file.slnx', 'Directory.Packages.props', 'Directory.Build.targets', 'Directory.Build.props'],
+          'file.xpfm', 'file.spfm', 'file.bxml', 'file.mmi', 'file.slnx', 'Directory.Packages.props', 'Directory.Build.targets', 'Directory.Build.props', 'file.reanim'],
     xmodmap: ['anyXmodmap', 'Xmodmap', 'some-Xmodmap', 'some-xmodmap', 'some-xmodmap-file', 'xmodmap', 'xmodmap-file'],
     xpm: ['file.xpm'],
     xpm2: ['file.xpm2'],
@@ -994,7 +1001,7 @@ def s:GetFilenameChecks(): dict<list<string>>
     xslt: ['file.xsl', 'file.xslt'],
     yacc: ['file.yy', 'file.yxx', 'file.y++'],
     yaml: ['file.yaml', 'file.yml', 'file.eyaml', 'file.kyaml', 'file.kyml', 'any/.bundle/config', '.clangd', '.clang-format', '.clang-tidy', 'file.mplstyle', 'matplotlibrc', 'yarn.lock',
-           '/home/user/.kube/config', '/home/user/.kube/kuberc', '.condarc', 'condarc', '.mambarc', 'mambarc', 'pixi.lock', 'buf.lock'],
+           '/home/user/.kube/config', '/home/user/.kube/kuberc', '.condarc', 'condarc', '.mambarc', 'mambarc', 'pixi.lock', 'buf.lock', 'file.ksy'],
     yang: ['file.yang'],
     yara: ['file.yara', 'file.yar'],
     yuck: ['file.yuck'],
@@ -1087,7 +1094,10 @@ def s:GetScriptChecks(): dict<list<list<string>>>
             ['#!/path/bash2'],
             ['#!/path/dash'],
             ['#!/path/ksh'],
-            ['#!/path/ksh93']],
+            ['#!/path/ksh93'],
+            ['#!/path/ash'],
+            ['#!/path/busybox ash'],
+            ['#!/path/busybox sh']],
     csh:    [['#!/path/csh']],
     tcsh:   [['#!/path/tcsh']],
     zsh:    [['#!/path/zsh']],
@@ -2540,6 +2550,25 @@ func Test_tf_file_v2()
   call assert_equal('terraform', &filetype)
   bwipe!
 
+  " A backslash continuation line may start with any character
+  let lines =<< trim END
+    /def greet = \
+        plain words that start the continued line
+    ;a comment
+  END
+  call writefile(lines, "Xfile.tf", "D")
+  split Xfile.tf
+  call assert_equal('tf', &filetype)
+  bwipe!
+
+  " The user override wins regardless of content
+  let g:filetype_tf = 'terraform'
+  call writefile([';;; looks like tf'], 'Xfile.tf', 'D')
+  split Xfile.tf
+  call assert_equal('terraform', &filetype)
+  bwipe!
+  unlet g:filetype_tf
+
   filetype off
 endfunc
 
@@ -2831,7 +2860,13 @@ endfunc
 func Test_inc_file()
   filetype on
 
+  " pov
   call writefile(['this is the fallback'], 'Xfile.inc', 'D')
+  split Xfile.inc
+  call assert_equal('pov', &filetype)
+  bwipe!
+
+  call writefile(['!Comment with formular a = b/c'], 'Xfile.inc')
   split Xfile.inc
   call assert_equal('pov', &filetype)
   bwipe!
@@ -2884,6 +2919,11 @@ func Test_inc_file()
   bwipe!
 
   call writefile(['DEPENDS:append = " somedep"'], 'Xfile.inc')
+  split Xfile.inc
+  call assert_equal('bitbake', &filetype)
+  bwipe!
+
+  call writefile(['MACHINE ?= "qemu"'], 'Xfile.inc')
   split Xfile.inc
   call assert_equal('bitbake', &filetype)
   bwipe!
@@ -3526,6 +3566,21 @@ func Test_cucumber_code_injection()
   call assert_false(filereadable(marker), 'Ruby injection executed')
   bwipe!
   filetype plugin off
+endfunc
+
+func Test_as_file()
+  filetype on
+
+  call writefile([], 'Xfile.as', 'D')
+  split Xfile.as
+  call assert_equal('atlas', &filetype)
+  bwipe!
+  call writefile(['', '.NETCONF     192.168.1.11,"TIMESYS-",255.255.255.0,192.168.0.1,0.0.0.0,0.0.0.0," "'], 'Xfile.as', 'D')
+  split Xfile.as
+  call assert_equal('kawasaki_as', &filetype)
+  bwipe!
+
+  filetype off
 endfunc
 
 " vim: shiftwidth=2 sts=2 expandtab

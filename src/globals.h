@@ -853,6 +853,8 @@ EXTERN guicolor_T cterm_normal_fg_gui_color INIT(= INVALCOLOR);
 EXTERN guicolor_T cterm_normal_bg_gui_color INIT(= INVALCOLOR);
 EXTERN guicolor_T cterm_normal_ul_gui_color INIT(= INVALCOLOR);
 #endif
+EXTERN guicolor_T fallback_fg_rgb INIT(= INVALCOLOR); // RGB fallback foreground color from guifg, ctermfg or deduced from 'background'
+EXTERN guicolor_T fallback_bg_rgb INIT(= INVALCOLOR); // RGB fallback background color from guibg, ctermbg or deduced from 'background'
 #ifdef FEAT_TERMRESPONSE
 EXTERN int	is_mac_terminal INIT(= FALSE);  // recognized Terminal.app
 #endif
@@ -2005,6 +2007,7 @@ EXTERN int  disable_char_avail_for_testing INIT(= FALSE);
 EXTERN int  disable_redraw_for_testing INIT(= FALSE);
 EXTERN int  ignore_redraw_flag_for_testing INIT(= FALSE);
 EXTERN int  nfa_fail_for_testing INIT(= FALSE);
+EXTERN int  disable_syn_idlist_cache_for_testing INIT(= FALSE);
 EXTERN int  no_query_mouse_for_testing INIT(= FALSE);
 EXTERN int  ui_delay_for_testing INIT(= 0);
 EXTERN int  reset_term_props_on_termresponse INIT(= FALSE);

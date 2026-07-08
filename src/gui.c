@@ -10,6 +10,10 @@
 
 #include "vim.h"
 
+#if defined(FEAT_IMAGE_GDI)
+void update_popup_images_rect(int left, int top, int right, int bottom);
+#endif
+
 // Structure containing all the GUI information
 gui_T gui;
 
@@ -158,7 +162,7 @@ gui_start(char_u *arg UNUSED)
 	choose_clipmethod();
 #endif
 
-#ifdef FEAT_GUI_MSWIN
+#if defined(FEAT_GUI_MSWIN) || defined(FEAT_GUI_GTK)
     // Enable fullscreen mode
     if (vim_strchr(p_go, GO_FULLSCREEN) != NULL)
        gui_mch_set_fullscreen(TRUE);
@@ -1408,7 +1412,10 @@ gui_update_cursor(
 	    --gui.col;
 #endif
 
-#ifndef FEAT_GUI_MSWIN	    // doesn't seem to work for MSWindows
+	// Doesn't seem to work for MSWindows. Not necessary when using
+	// GtkSnapshot, because everything is drawn in order in the snapshot
+	// vfunc.
+#if !defined(FEAT_GUI_MSWIN) && !defined(USE_GTK4_SNAPSHOT)
 	gui.highlight_mask = ScreenAttrs[LineOffset[gui.row] + gui.col];
 	(void)gui_screenchar(LineOffset[gui.row] + gui.col,
 		GUI_MON_TRS_CURSOR | GUI_MON_NOCLEAR,
@@ -1594,12 +1601,27 @@ again:
 
     // Flush pending output before redrawing
     out_flush();
+#if defined(FEAT_GUI_GTK) && defined(USE_GTK4)
+    gui_gtk_init_decor_height();
+#endif
 
     gui.num_cols = (pixel_width - gui_get_base_width()) / gui.char_width;
     gui.num_rows = (pixel_height - gui_get_base_height()) / gui.char_height;
 
+#ifdef USE_GTK4_SNAPSHOT
+    gui_gtk4_update_size();
+#endif
+
     gui_position_components(pixel_width);
     gui_reset_scroll_region();
+
+#if defined(FEAT_GUI_GTK) && defined(USE_GTK4) && !defined(USE_GTK4_SNAPSHOT)
+    // We do not resize the draw area via the "resize" signal. This is because
+    // when the window is resized, the form widget is the one that is resized,
+    // so let that call gui_resize_shell() which will allocate the surface and
+    // allocate the drawing area size/position.
+    gui_gtk4_resize(pixel_width, pixel_height);
+#endif
 
     /*
      * At the "more" and ":confirm" prompt there is no redraw, put the cursor
@@ -1623,6 +1645,9 @@ again:
 
     gui_update_scrollbars(TRUE);
     gui_update_cursor(FALSE, TRUE);
+#if defined(FEAT_GUI_GTK) && defined(USE_GTK4_SNAPSHOT)
+    gui_gtk_calculate_bleed(pixel_width, pixel_height);
+#endif
 #if defined(FEAT_XIM) && !defined(FEAT_GUI_GTK)
     xim_set_status_area();
 #endif
@@ -1792,6 +1817,10 @@ gui_set_shellsize(
     gui_position_components(width);
     gui_update_scrollbars(TRUE);
     gui_reset_scroll_region();
+
+#if defined(FEAT_GUI_GTK) && defined(USE_GTK4_SNAPSHOT)
+    gui_gtk_calculate_bleed(width, height);
+#endif
 }
 
 /*
@@ -2730,6 +2759,15 @@ gui_undraw_cursor(void)
 #endif
     gui_redraw_block(gui.cursor_row, startcol,
 	    gui.cursor_row, endcol, GUI_MON_NOCLEAR);
+#if defined(FEAT_IMAGE_GDI)
+    {
+	int left   = FILL_X(startcol);
+	int top    = FILL_Y(gui.cursor_row);
+	int right  = FILL_X(endcol + 1);
+	int bottom = FILL_Y(gui.cursor_row + 1);
+	update_popup_images_rect(left, top, right, bottom);
+    }
+#endif
 
     // Cursor_is_valid is reset when the cursor is undrawn, also reset it
     // here in case it wasn't needed to undraw it.
@@ -3512,7 +3550,9 @@ gui_init_which_components(char_u *oldval UNUSED)
 #ifdef FEAT_GUI_MSWIN
     static int	prev_titlebar = FALSE;
     int		using_titlebar = FALSE;
+#endif
 
+#if defined(FEAT_GUI_MSWIN) || defined(FEAT_GUI_GTK)
     static int	prev_fullscreen = FALSE;
     int		using_fullscreen = FALSE;
 #endif
@@ -3589,6 +3629,8 @@ gui_init_which_components(char_u *oldval UNUSED)
 	    case GO_TITLEBAR:
 		using_titlebar = TRUE;
 		break;
+#endif
+#if defined(FEAT_GUI_MSWIN) || defined(FEAT_GUI_GTK)
 	    case GO_FULLSCREEN:
 		using_fullscreen = TRUE;
 		break;
@@ -3620,7 +3662,9 @@ gui_init_which_components(char_u *oldval UNUSED)
 	gui_mch_set_titlebar_colors();
 	prev_titlebar = using_titlebar;
     }
+#endif
 
+#if defined(FEAT_GUI_MSWIN) || defined(FEAT_GUI_GTK)
     if (using_fullscreen != prev_fullscreen)
     {
 	gui_mch_set_fullscreen(using_fullscreen);
@@ -4107,6 +4151,8 @@ gui_drag_scrollbar(scrollbar_T *sb, long value, int still_dragging)
 	// Keep the "dragged_wp" value until after the scrolling, for when the
 	// mouse button is released.  GTK2 doesn't send the button-up event.
 	gui.dragged_wp = NULL;
+	// WinScrolled event
+	gui_focus_change(TRUE);
 #endif
     }
 

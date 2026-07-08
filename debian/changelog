@@ -1,8 +1,33 @@
-vim (2:9.2.0524-1deepin1) unstable; urgency=medium
+vim (2:9.2.0782-1) unstable; urgency=medium
 
-  * Set-NoDisplay-true-for-vim-desktop.patch
+  * New upstream tag
+    + Security fixes (Closes: #1140775)
+      - 9.2.0561: possible code execution with python3complete (Closes:
+        #1139728, CVE-2026-52858)
+      - 9.2.0565: out-of-bounds read in :terminal if a cell has 5 combining
+        marks (Closes: #1139729, CVE-2026-52859)
+      - 9.2.0597: Allocation failure not handled when defining a dictionary
+        function (Closes: #1139730, CVE-2026-52860)
+      - 9.2.0653: out-of-bounds read with a crafted spell file, CVE-2026-55693
+      - 9.2.0662: out-of-bounds write with a crafted spell file,
+        CVE-2026-55892
+      - 9.2.0663: possible code execution in netrw when deleting a file with a
+        "|" in its name, CVE-2026-55895
+      - 9.2.0670: out-of-bounds read of text properties when handling a
+        crafted undo file, CVE-2026-57451
+      - 9.2.0671: Possible out-of-bounds read when opening a sodium-encrypted
+        file, CVE-2026-57452
+      - 9.2.0678: Possible powershell code execution when opening a zip file,
+        CVE-2026-57453
+      - 9.2.0679: out-of-bounds read of text properties when handling a
+        crafted undo file, CVE-2026-57454
+      - 9.2.0698: out-of-bounds write when using soundfold() on a large input,
+        CVE-2026-57455
+      - 9.2.0699: possible code execution when using python complete,
+        CVE-2026-57456
+  * Skip Test_clientserver_serverlist_list() and Test_remote_serverlist()
 
- -- lichenggang <lichenggang@deepin.org>  Tue, 16 Jun 2026 20:27:15 +0800
+ -- James McCoy <jamessan@debian.org>  Tue, 07 Jul 2026 21:46:03 -0400
 
 vim (2:9.2.0524-1) unstable; urgency=medium
 

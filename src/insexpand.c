@@ -187,6 +187,7 @@ static linenr_T	  compl_lnum = 0;           // lnum where the completion start
 static colnr_T	  compl_col = 0;	    // column where the text starts
 					    // that is being completed
 static colnr_T	  compl_ins_end_col = 0;
+static colnr_T	  compl_longest_end_col = 0;  // end of 'longest' inserted text
 static string_T	  compl_orig_text = {NULL, 0};  // text as it was before
 					    // completion started
 static int	  compl_cont_mode = 0;
@@ -204,6 +205,10 @@ static buf_T	  *compl_curr_buf = NULL;  // buf where completion is active
 // longer fixed timeout is used (COMPL_FUNC_TIMEOUT_MS or
 // COMPL_FUNC_TIMEOUT_NON_KW_MS). - girish
 static int	  compl_autocomplete = FALSE;	    // whether autocompletion is active
+static bool	  compl_autocomplete_pending = false;
+#ifdef ELAPSED_FUNC
+static elapsed_T  compl_autocomplete_start_tv;	    // when the delay was armed
+#endif
 static int	  compl_timeout_ms = COMPL_INITIAL_TIMEOUT_MS;
 static int	  compl_time_slice_expired = FALSE; // time budget exceeded for current source
 static int	  compl_from_nonkeyword = FALSE;    // completion started from non-keyword
@@ -359,7 +364,7 @@ int ctrl_x_mode_omni(void)
     { return ctrl_x_mode == CTRL_X_OMNI; }
 int ctrl_x_mode_spell(void)
     { return ctrl_x_mode == CTRL_X_SPELL; }
-static int ctrl_x_mode_eval(void)
+int ctrl_x_mode_eval(void)
     { return ctrl_x_mode == CTRL_X_EVAL; }
 int ctrl_x_mode_line_or_eval(void)
     { return ctrl_x_mode == CTRL_X_WHOLE_LINE || ctrl_x_mode == CTRL_X_EVAL; }
@@ -698,6 +703,7 @@ ins_compl_infercase_gettext(
 	    if (ga_grow(&gap, 10) == FAIL)
 	    {
 		ga_clear(&gap);
+		vim_free(wca);
 		return (char_u *)"[failed]";
 	    }
 	    p = (char_u *)gap.ga_data + gap.ga_len;
@@ -1049,6 +1055,33 @@ ins_compl_equal(compl_T *match, char_u *str, int len)
     if (match->cp_flags & CP_ICASE)
 	return STRNICMP(match->cp_str.string, str, (size_t)len) == 0;
     return STRNCMP(match->cp_str.string, str, (size_t)len) == 0;
+}
+
+/*
+ * Like ins_compl_equal(), but ignore case in the 'longest'-inserted part of
+ * the leader, so CTRL-N and CTRL-P filter the same way.
+ */
+    static int
+ins_compl_equal_sc(compl_T *match, char_u *str, int len)
+{
+    int	typed = compl_length;
+    int	longest_end = (compl_get_longest && compl_longest_end_col > compl_col)
+			    ? (int)(compl_longest_end_col - compl_col) : typed;
+
+    if ((match->cp_flags & (CP_EQUAL | CP_ICASE)) || longest_end <= typed)
+	return ins_compl_equal(match, str, len);
+
+    if ((int)match->cp_str.length < len)
+	return FALSE;
+
+    for (int i = 0; i < len; ++i)
+    {
+	if (i >= typed && i < longest_end
+		? TOLOWER_LOC(match->cp_str.string[i]) != TOLOWER_LOC(str[i])
+		: match->cp_str.string[i] != str[i])
+	    return FALSE;
+    }
+    return TRUE;
 }
 
 /*
@@ -1687,14 +1720,15 @@ ins_compl_build_pum(void)
 
 	leader = get_leader_for_startcol(compl, TRUE);
 
-	// Apply 'smartcase' behavior during normal mode
-	if (ctrl_x_mode_normal() && !p_inf && leader->string
-		&& !ignorecase(leader->string) && !cot_fuzzy())
+	// Apply 'smartcase': judge case from compl_orig_text, not the leader
+	// which 'longest' may fill with uppercase the user never typed.
+	if (ctrl_x_mode_normal() && !p_inf && compl_orig_text.string
+		&& !ignorecase(compl_orig_text.string) && !cot_fuzzy())
 	    compl->cp_flags &= ~CP_ICASE;
 
 	if (!match_at_original_text(compl)
 		&& (leader->string == NULL
-		    || ins_compl_equal(compl, leader->string,
+		    || ins_compl_equal_sc(compl, leader->string,
 			(int)leader->length)
 		    || (cot_fuzzy() && compl->cp_score != FUZZY_SCORE_NONE)))
 	{
@@ -1859,13 +1893,19 @@ ins_compl_show_pum(void)
     // part of the screen would be updated.  We do need to redraw here.
     dollar_vcol = -1;
 
-    // Compute the screen column of the start of the completed text.
-    // Use the cursor to get all wrapping and other settings right.
+    // Position the menu at the completion start without moving the cursor
+    // there, so the ruler keeps showing the real cursor column.
     col = curwin->w_cursor.col;
     curwin->w_cursor.col = compl_col;
-    compl_selected_item = cur;
-    pum_display(compl_match_array, compl_match_arraysize, cur);
+    validate_cursor_col();
+    int pum_wcol = curwin->w_wcol;
     curwin->w_cursor.col = col;
+    validate_cursor_col();
+    compl_selected_item = cur;
+    // Flag the status line so the ruler is redrawn for the real cursor column
+    // when the menu update redraws the screen.
+    curwin->w_redr_status = true;
+    pum_display(compl_match_array, compl_match_arraysize, cur, pum_wcol);
 
     // After adding leader, set the current match to shown match.
     if (compl_started && compl_curr_match != compl_shown_match)
@@ -2285,6 +2325,7 @@ ins_compl_clear(void)
     compl_matches = 0;
     compl_selected_item = -1;
     compl_ins_end_col = 0;
+    compl_longest_end_col = 0;
     compl_curr_win = NULL;
     compl_curr_buf = NULL;
     VIM_CLEAR_STRING(compl_pattern);
@@ -2527,12 +2568,6 @@ ins_compl_new_leader(void)
     ins_compl_insert_bytes(compl_leader.string + get_compl_len(), -1);
     compl_used_match = FALSE;
 
-    if (p_acl > 0)
-    {
-	update_screen(UPD_VALID); // Show char (deletion) immediately
-	out_flush();
-    }
-
     if (compl_started)
     {
 	ins_compl_set_original_text(compl_leader.string, compl_leader.length);
@@ -2572,7 +2607,9 @@ ins_compl_new_leader(void)
 
     compl_enter_selects = !compl_used_match && compl_selected_item != -1;
 
-    // Show the popup menu with a different set of matches.
+    // Show the popup menu with a different set of matches.  With
+    // 'autocompletedelay' the menu is already visible here, so update it
+    // immediately rather than re-arming the delay, like a zero delay does.
     if (!compl_interrupted)
 	show_pum(save_w_wrow, save_w_leftcol);
 
@@ -3848,7 +3885,7 @@ set_completion(colnr_T startcol, list_T *list)
     int compl_no_select = (cur_cot_flags & COT_NOSELECT) != 0;
 
     // If already doing completions stop it.
-    if (ctrl_x_mode_not_default())
+    if (compl_started || ctrl_x_mode_not_default())
 	ins_compl_prep(' ');
     ins_compl_clear();
     ins_compl_free();
@@ -4517,6 +4554,7 @@ ins_compl_longest_insert(char_u *prefix)
 {
     ins_compl_delete();
     ins_compl_insert_bytes(prefix + get_compl_len(), -1);
+    compl_longest_end_col = curwin->w_cursor.col;
     ins_redraw(FALSE);
 }
 
@@ -5805,13 +5843,13 @@ find_common_prefix(size_t *prefix_len, int curbuf_only)
 	string_T *leader = get_leader_for_startcol(compl, TRUE);
 
 	// Apply 'smartcase' behavior during normal mode
-	if (ctrl_x_mode_normal() && !p_inf && leader->string
-		&& !ignorecase(leader->string))
+	if (ctrl_x_mode_normal() && !p_inf && compl_orig_text.string
+		&& !ignorecase(compl_orig_text.string))
 	    compl->cp_flags &= ~CP_ICASE;
 
 	if (!match_at_original_text(compl)
 		&& (leader->string == NULL
-		    || ins_compl_equal(compl, leader->string,
+		    || ins_compl_equal_sc(compl, leader->string,
 			(int)leader->length)))
 	{
 	    // Limit number of items from each source if max_items is set.
@@ -6180,7 +6218,6 @@ ins_compl_next(
     int	    compl_no_insert = (cur_cot_flags & COT_NOINSERT) != 0
 		    || (compl_autocomplete && !ins_compl_has_preinsert());
     int	    compl_preinsert = ins_compl_has_preinsert();
-    int	    has_autocomplete_delay = (compl_autocomplete && p_acl > 0);
 
     // When user complete function return -1 for findstart which is next
     // time of 'always', compl_shown_match become NULL.
@@ -6224,11 +6261,7 @@ ins_compl_next(
 
     // Insert the text of the new completion, or the compl_leader.
     if (!started && ins_compl_preinsert_longest())
-    {
 	ins_compl_insert(TRUE, TRUE);
-	if (has_autocomplete_delay)
-	    update_screen(0);  // Show the inserted text right away
-    }
     else if (compl_no_insert && !started && !compl_preinsert)
     {
 	ins_compl_insert_bytes(compl_orig_text.string + get_compl_len(), -1);
@@ -6254,7 +6287,7 @@ ins_compl_next(
 	// may undisplay the popup menu first
 	ins_compl_upd_pum();
 
-	if (pum_enough_matches() && !has_autocomplete_delay)
+	if (pum_enough_matches())
 	    // Will display the popup menu, don't redraw yet to avoid flicker.
 	    pum_call_update_screen();
 	else
@@ -6262,19 +6295,16 @@ ins_compl_next(
 	    // inserted.
 	    update_screen(0);
 
-	if (!has_autocomplete_delay)
-	{
-	    // display the updated popup menu
-	    ins_compl_show_pum();
+	// display the updated popup menu
+	ins_compl_show_pum();
 #ifdef FEAT_GUI
-	    if (gui.in_use)
-	    {
-		// Show the cursor after the match, not after the redrawn text.
-		setcursor();
-		out_flush_cursor(FALSE, FALSE);
-	    }
-#endif
+	if (gui.in_use)
+	{
+	    // Show the cursor after the match, not after the redrawn text.
+	    setcursor();
+	    out_flush_cursor(FALSE, FALSE);
 	}
+#endif
 
 	// Delete old text to be replaced, since we're still searching and
 	// don't want to match ourselves!
@@ -6367,9 +6397,10 @@ ins_compl_check_keys(int frequency, int in_compl_func)
 	    c = safe_vgetc();
 	    if (c != K_IGNORE)
 	    {
-		// Don't interrupt completion when the character wasn't typed,
-		// e.g., when doing @q to replay keys.
-		if (c != Ctrl_R && KeyTyped)
+		// Typed keys that get mapped lose KeyTyped. Still let
+		// complete_check() interrupt, except during @r replay.
+		if (c != Ctrl_R && (KeyTyped
+			    || (in_compl_func && reg_executing == 0)))
 		    compl_interrupted = TRUE;
 
 		vungetc(c);
@@ -7257,13 +7288,6 @@ ins_complete(int c, int enable_pum)
     int		save_w_leftcol;
     int		insert_match;
     int		no_matches_found;
-#ifdef ELAPSED_FUNC
-    elapsed_T	compl_start_tv = {0}; // Time when match collection starts
-    int		disable_ac_delay;
-
-    disable_ac_delay = compl_started && ctrl_x_mode_normal()
-	&& (c == Ctrl_N || c == Ctrl_P || c == Ctrl_R || ins_compl_pum_key(c));
-#endif
 
     compl_direction = ins_compl_key2dir(c);
     insert_match = ins_compl_use_match(c);
@@ -7276,10 +7300,6 @@ ins_complete(int c, int enable_pum)
     else if (insert_match && stop_arrow() == FAIL)
 	return FAIL;
 
-#ifdef ELAPSED_FUNC
-    if (compl_autocomplete && p_acl > 0 && !disable_ac_delay)
-	ELAPSED_INIT(compl_start_tv);
-#endif
     compl_curr_win = curwin;
     compl_curr_buf = curwin->w_buffer;
     compl_shown_match = compl_curr_match;
@@ -7335,34 +7355,6 @@ ins_complete(int c, int enable_pum)
     if (!shortmess(SHM_COMPLETIONMENU) && !compl_autocomplete)
 	ins_compl_show_statusmsg();
 
-    // Wait for the autocompletion delay to expire
-#ifdef ELAPSED_FUNC
-    if (compl_autocomplete && p_acl > 0 && !disable_ac_delay
-	    && !no_matches_found && ELAPSED_FUNC(compl_start_tv) < p_acl)
-    {
-	cursor_on();
-	setcursor();
-	out_flush_cursor(FALSE, FALSE);
-	do
-	{
-	    if (char_avail())
-	    {
-		if (ins_compl_preinsert_effect()
-			&& ins_compl_win_active(curwin))
-		{
-		    ins_compl_delete(); // Remove pre-inserted text
-		    compl_ins_end_col = compl_col;
-		}
-		ins_compl_restart();
-		compl_interrupted = TRUE;
-		break;
-	    }
-	    else
-		ui_delay(2L, TRUE);
-	} while (ELAPSED_FUNC(compl_start_tv) < p_acl);
-    }
-#endif
-
     // Show the popup menu, unless we got interrupted.
     if (enable_pum && !compl_interrupted)
 	show_pum(save_w_wrow, save_w_leftcol);
@@ -7382,6 +7374,55 @@ ins_compl_enable_autocomplete(void)
 #ifdef ELAPSED_FUNC
     compl_autocomplete = TRUE;
     compl_get_longest = FALSE;
+#endif
+}
+
+/*
+ * Arm the 'autocompletedelay' timer when the delay is in effect.
+ * Return true when the popup should be deferred, false to trigger it now.
+ */
+    bool
+ins_compl_arm_autocomplete_delay(void)
+{
+#ifdef ELAPSED_FUNC
+    if (p_acl > 0)
+    {
+	ELAPSED_INIT(compl_autocomplete_start_tv);
+	compl_autocomplete_pending = true;
+	return true;
+    }
+#endif
+    return false;
+}
+
+/*
+ * Clear the pending 'autocompletedelay' state.
+ */
+    void
+ins_compl_clear_autocomplete_delay(void)
+{
+    compl_autocomplete_pending = false;
+}
+
+/*
+ * Return true while waiting for 'autocompletedelay' to expire.
+ */
+    bool
+ins_compl_autocomplete_pending(void)
+{
+    return compl_autocomplete_pending;
+}
+
+/*
+ * Return the time in msec since the 'autocompletedelay' was armed.
+ */
+    long
+ins_compl_autocomplete_elapsed(void)
+{
+#ifdef ELAPSED_FUNC
+    return ELAPSED_FUNC(compl_autocomplete_start_tv);
+#else
+    return 0;
 #endif
 }
 

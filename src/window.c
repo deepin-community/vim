@@ -682,9 +682,21 @@ wingotofile:
 			if (do_ecmd(0, ptr, NULL, NULL, ECMD_LASTL,
 						   ECMD_HIDE, NULL) == FAIL)
 			{
+			    /*
+			     * Note: if FEAT_EVAL is defined and do_ecmd() is aborted resulting
+			     * in got_int be true, win_close() unconditionally fails. In such
+			     * case, the window split for do_ecmd() is left unclosed, i.e. the
+			     * current window is just duplicated. To avoid this, save and load
+			     * got_int value before and after closing the window.
+			     */
+			    sig_atomic_t    old_got_int = got_int;
+			    got_int = FALSE;
+
 			    // Failed to open the file, close the window
 			    // opened for it.
 			    win_close(curwin, FALSE);
+			    got_int = got_int || old_got_int;
+
 			    goto_tabpage_win(oldtab, oldwin);
 			}
 			else
@@ -6199,6 +6211,16 @@ win_free_popup(win_T *win)
     // the timer may have been cleared, making the pointer invalid
     if (timer_valid(win->w_popup_timer))
 	stop_timer(win->w_popup_timer);
+# endif
+# ifdef FEAT_IMAGE
+    vim_free(win->w_popup_image_data);
+#  ifdef FEAT_IMAGE_SIXEL
+    vim_free(win->w_popup_image_seq);
+#  endif
+#  if defined(FEAT_IMAGE_GDI) || defined(FEAT_IMAGE_CAIRO) \
+    || defined(FEAT_IMAGE_GDK)
+    gui_mch_free_popup_image(win);
+#  endif
 # endif
     vim_free(win->w_frame);
     win_free(win, NULL);
