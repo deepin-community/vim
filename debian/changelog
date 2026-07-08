@@ -1,3 +1,9 @@
+vim (2:9.2.0782-1deepin1) unstable; urgency=medium
+
+  * Set-NoDisplay-true-for-vim-desktop.patch
+
+ -- Tianyu Chen <sweetyfish@deepin.org>  Wed, 08 Jul 2026 11:33:12 +0800
+
 vim (2:9.2.0782-1) unstable; urgency=medium
 
   * New upstream tag
