@@ -1,8 +1,15 @@
-vim (2:9.2.0782-1deepin1) unstable; urgency=medium
+vim (2:9.2.0858-1) unstable; urgency=medium
 
-  * Set-NoDisplay-true-for-vim-desktop.patch
+  * New upstream tag
+    - 9.2.0831: Adjust diff highlighting so it's more readable in terminals
+      with < 256 colors (Closes: #1140942)
+  * Add historical changelog entry for fix of bash array syntax highlighting,
+    #977141, which was closed in 2:9.1.0199-1
+  * Add historical changelog entry for fix of make syntax highlighting, when a
+    string has a closing paren (#987060), which was fixed by 2:9.1.2103-1
+  * salsa-ci: Remove obsolete DISABLE_REPROTEST: 1 setting
 
- -- Tianyu Chen <sweetyfish@deepin.org>  Wed, 08 Jul 2026 11:33:12 +0800
+ -- James McCoy <jamessan@debian.org>  Mon, 27 Jul 2026 06:11:18 -0400
 
 vim (2:9.2.0782-1) unstable; urgency=medium
 
@@ -173,6 +180,8 @@ vim (2:9.1.2103-1) unstable; urgency=medium
       - Only highlight email addresses in Maintainer / Uploaders fields
       - Add support for highlighting build profiles and architecture
         restrictions (Closes: #1124089)
+    + syntax/make.vim: Fix syntax highlighting when a string contains a
+      closing paren. (Closes: #987060)
   * Disable flaky Test_client_server_stopinsert test
   * Remove Rules-Requires-Root, since no is the default value
   * Remove Priority field, since optional is the default value
@@ -392,6 +401,8 @@ vim (2:9.1.0199-1) unstable; urgency=medium
       #1065978)
     + syntax/deb822sources.vim: Fix erroneous highlighting of keywords in
       field values. (Closes: #1061630)
+    + syntax/sh.vim: Fix highlight of multi-line array statement. (Closes:
+      #977141)
 
  -- James McCoy <jamessan@debian.org>  Sun, 24 Mar 2024 09:16:49 -0400
 
