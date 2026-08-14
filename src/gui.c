@@ -24,7 +24,9 @@ static void set_guifontwide(char_u *font_name);
 static void gui_check_pos(void);
 static void gui_reset_scroll_region(void);
 static void gui_outstr(char_u *, int);
+#ifndef USE_GTK4_SNAPSHOT
 static int gui_screenchar(int off, int flags, guicolor_T fg, guicolor_T bg, int back);
+#endif
 static int gui_outstr_nowrap(char_u *s, int len, int flags, guicolor_T fg, guicolor_T bg, int back);
 static void gui_delete_lines(int row, int count);
 static void gui_insert_lines(int row, int count);
@@ -483,6 +485,11 @@ gui_init_check(void)
     result = OK;
 #else
 # ifdef FEAT_GUI_GTK
+    gui.is_x11 = false;
+#  ifdef FEAT_GUI_DIALOG
+    gui.dialogs_active = 0;
+    gui.dialog_focus_pending = 0;
+#  endif
 #  ifdef GDK_WINDOWING_WAYLAND
     gui.is_wayland = false;
 #  endif
@@ -673,6 +680,9 @@ gui_init(void)
      * Create the GUI shell.
      */
     gui.in_use = true;		// Must be set after menus have been set up
+#if defined(FEAT_GUI_GTK) && defined(FEAT_IMAGE)
+    gui.scale = 1.0; // Default value
+#endif
     if (gui_mch_init() == FAIL)
 	goto error;
 
@@ -1189,6 +1199,9 @@ gui_update_cursor(
     int		cattr;		// cursor attributes
     int		attr;
     attrentry_T *aep = NULL;
+#if (defined(FEAT_GUI_GTK) || defined(FEAT_GUI_MSWIN)) && !defined(USE_GTK4_SNAPSHOT)
+    bool	lig_left = false, lig_right = false;
+#endif
 
     // Don't update the cursor when halfway busy scrolling or the screen size
     // doesn't match 'columns' and 'lines.  ScreenLines[] isn't valid then.
@@ -1354,13 +1367,77 @@ gui_update_cursor(
      */
     if (!gui.in_focus)
     {
+#ifdef USE_GTK4_SNAPSHOT
+	gui_gtk4_draw_cursor(cbg, cfg, -1, -1);
+#else
 	gui_mch_draw_hollow_cursor(cbg);
+#endif
 	return;
     }
+
+#ifdef USE_GTK4_SNAPSHOT
+    // Make sure that character underneath is drawn again in case it is part of
+    // a ligature.
+    gui_redraw_block(gui.row, gui.col, gui.row, gui.col, GUI_MON_NOCLEAR);
+    // gui_redraw_block() will invalidate the cursor
+    gui.cursor_is_valid = true;
+#endif
+#if defined(FEAT_GUI_GTK) || defined(FEAT_GUI_MSWIN)
+    // If cursor is in the middle of a ligature, then split the ligature at
+    // the cursor boundaries by redrawing those cells again.
+    for (int c = gui.col - 1; c >= 0; c--)
+	if (!gui.ligatures_map[ScreenLines[LineOffset[gui.row] + c]])
+	{
+	    if (c < gui.col - 1)
+	    {
+		gui_redraw_block(gui.row, c + 1, gui.row, gui.col - 1,
+			GUI_MON_NOCLEAR);
+# ifndef USE_GTK4_SNAPSHOT
+		lig_left = true;
+# endif
+	    }
+	    break;
+	}
+
+    for (int c = gui.col + 1; c < screen_Columns - 1; c++)
+	if (!gui.ligatures_map[ScreenLines[LineOffset[gui.row] + c]])
+	{
+	    if (c > gui.col + 1)
+	    {
+		gui_redraw_block(gui.row, gui.col + 1, gui.row, c - 1,
+			GUI_MON_NOCLEAR);
+# ifndef USE_GTK4_SNAPSHOT
+		lig_right = true;
+# endif
+	    }
+	    break;
+	}
+    // gui_redraw_block() may invalidate the cursor, make sure to validate
+    // it again.
+    gui.cursor_is_valid = true;
+
+# ifndef USE_GTK4_SNAPSHOT
+    if ((lig_left || lig_right) && shape->shape != SHAPE_BLOCK)
+    {
+	// Because the cursor is not drawn with gui_screenchar(), must blit the
+	// cell again (with its background), so that old ligature does not
+	// remain on screen. Not needed for GtkSnapshot, because char beneath is
+	// always rerendered (see above ifdef).
+	int old = gui.col;
+	gui.highlight_mask = ScreenAttrs[LineOffset[gui.row] + gui.col];
+	(void)gui_screenchar(LineOffset[gui.row] + gui.col,
+		GUI_MON_NOCLEAR, (guicolor_T)0, (guicolor_T)0, 0);
+	gui.col = old;
+    }
+# endif
+#endif
 
     old_hl_mask = gui.highlight_mask;
     if (shape->shape == SHAPE_BLOCK)
     {
+#ifdef USE_GTK4_SNAPSHOT
+	gui_gtk4_draw_cursor(cbg, cfg, 0, 0);
+#else
 	/*
 	 * Draw the text character with the cursor colors.	Use the
 	 * character attributes plus the cursor attributes.
@@ -1368,6 +1445,7 @@ gui_update_cursor(
 	gui.highlight_mask = (cattr | attr);
 	(void)gui_screenchar(LineOffset[gui.row] + gui.col,
 		GUI_MON_IS_CURSOR | GUI_MON_NOCLEAR, cfg, cbg, 0);
+#endif
     }
     else
     {
@@ -1406,15 +1484,18 @@ gui_update_cursor(
 	    }
 #endif
 	}
+#ifdef USE_GTK4_SNAPSHOT
+	gui_gtk4_draw_cursor(cbg, cfg, cur_width, cur_height);
+#else
 	gui_mch_draw_part_cursor(cur_width, cur_height, cbg);
+#endif
 #if defined(FEAT_RIGHTLEFT)
 	if (col_off)
 	    --gui.col;
 #endif
 
-	// Doesn't seem to work for MSWindows. Not necessary when using
-	// GtkSnapshot, because everything is drawn in order in the snapshot
-	// vfunc.
+	// Doesn't seem to work for MSWindows. We call gui_redraw_block() above
+	// for GtkSnapshot.
 #if !defined(FEAT_GUI_MSWIN) && !defined(USE_GTK4_SNAPSHOT)
 	gui.highlight_mask = ScreenAttrs[LineOffset[gui.row] + gui.col];
 	(void)gui_screenchar(LineOffset[gui.row] + gui.col,
@@ -2212,6 +2293,7 @@ gui_outstr(char_u *s, int len)
     }
 }
 
+#ifndef USE_GTK4_SNAPSHOT
 /*
  * Output one character (may be one or two display cells).
  * Caller must check for valid "off".
@@ -2248,6 +2330,7 @@ gui_screenchar(
 	    enc_dbcs ? (*mb_ptr2len)(ScreenLines + off) : 1,
 							 flags, fg, bg, back);
 }
+#endif
 
 #ifdef FEAT_GUI_GTK
 /*
@@ -4882,7 +4965,11 @@ gui_focus_change(int in_focus)
     // Put events in the input queue only when allowed.
     // ui_focus_change() isn't called directly, because it invokes
     // autocommands and that must not happen asynchronously.
-    if (!hold_gui_events)
+    if (!hold_gui_events
+# if defined(FEAT_GUI_GTK) && defined(FEAT_GUI_DIALOG)
+	    && gui.dialogs_active == 0
+# endif
+       )
     {
 	char_u  bytes[3];
 

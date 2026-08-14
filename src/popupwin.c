@@ -117,13 +117,23 @@ static void redraw_under_popup_area(int winrow, int wincol, int height,
 	int width, int leftoff);
 static void redraw_overlapped_opacity_popups(int winrow, int wincol,
 	int height, int width, int leftoff, int zindex);
+static void redraw_win_under_opacity_popup(win_T *wp);
 #ifdef FEAT_IMAGE_KITTY
 static void popup_image_clear_kitty(win_T *wp);
 #endif
+// GDI and cairo paint the image straight into the window, so the area has to
+// be redrawn when the popup goes away.  GTK4 keeps a list of images to render
+// instead, there gui_gtk4_remove_image() does the job.
+#ifdef FEAT_IMAGE_GDI
+# define POPUP_IMAGE_CLEAR_GUI
+#endif
 #if defined(FEAT_GUI_GTK) && defined(FEAT_IMAGE_CAIRO)
 # if !GTK_CHECK_VERSION(4,0,0)
-static void popup_image_clear_cairo(win_T *wp);
+#  define POPUP_IMAGE_CLEAR_GUI
 # endif
+#endif
+#ifdef POPUP_IMAGE_CLEAR_GUI
+static void popup_image_clear_gui(win_T *wp);
 #endif
 #ifdef FEAT_IMAGE
 static bool popup_image_composites_frames(void);
@@ -1101,9 +1111,9 @@ apply_general_options(win_T *wp, dict_T *dict)
 			    if (gui.in_use)
 			    {
 				if (gui.char_width > 0)
-				    cx = gui.char_width;
+				    cx = LOG2PHY(gui.char_width);
 				if (gui.char_height > 0)
-				    cy = gui.char_height;
+				    cy = LOG2PHY(gui.char_height);
 			    }
 			    else
 #  endif
@@ -2304,10 +2314,8 @@ popup_apply_winupdate_clip(win_T *wp, popup_clip_T *cl)
 	if (wp->w_height < 0)
 	    wp->w_height = 0;
 	if (cl->clip_top_content > 0)
-	{
+	    // w_winrow already points at the first visible row.
 	    wp->w_topline += cl->clip_top_content;
-	    wp->w_winrow += cl->clip_top_content;
-	}
     }
     if (wp->w_popup_leftclip > 0 || wp->w_popup_rightclip > 0)
     {
@@ -2973,6 +2981,10 @@ popup_adjust_position(win_T *wp)
 	return;
     }
 
+    // Make w_winrow the first visible screen row (>= 0); the clipped-off top
+    // rows are recorded in w_popup_topoff.
+    wp->w_winrow += wp->w_popup_topoff;
+
 #ifdef FEAT_IMAGE_SIXEL
     // Final winrow is now known: encode (or re-encode) the sixel image so it
     // fits within the screen and does not trigger sixel-scroll on terminals.
@@ -3001,6 +3013,35 @@ popup_adjust_position(win_T *wp)
 	popup_mask_refresh = TRUE;
     }
 }
+
+#if defined(FEAT_GUI_GTK) && defined(FEAT_IMAGE)
+/*
+ * Should be called when scale factor changes.
+ */
+    void
+popup_update_scale(double old_scale)
+{
+    win_T *wp;
+    double ratio = old_scale / gui.scale;
+
+    FOR_ALL_POPUPWINS_IN_TAB(curtab, wp)
+    {
+	// If the popup has an image, recalculate its bounding box in cells
+	if (wp->w_popup_image_data != NULL)
+	{
+	    // Add +0.5 so that it rounds to nearest whole value
+	    wp->w_minwidth  = wp->w_minwidth * ratio + 0.5;
+	    wp->w_maxwidth  = wp->w_maxwidth * ratio + 0.5;
+	    wp->w_minheight = wp->w_minheight * ratio + 0.5;
+	    wp->w_maxheight = wp->w_maxheight * ratio + 0.5;
+	}
+
+	// Reflow the popup layout with the newly calculated limits
+	popup_adjust_position(wp);
+    }
+    redraw_later(UPD_CLEAR);
+}
+#endif
 
 typedef enum
 {
@@ -4314,10 +4355,8 @@ popup_hide(win_T *wp)
 
     wp->w_popup_flags |= POPF_HIDDEN;
 
-#if defined(FEAT_GUI_GTK) && defined(FEAT_IMAGE_CAIRO)
-# if !GTK_CHECK_VERSION(4,0,0)
-    popup_image_clear_cairo(wp);
-# endif
+#ifdef POPUP_IMAGE_CLEAR_GUI
+    popup_image_clear_gui(wp);
 #endif
 
     // Do not decrement b_nwindows, we still reference the buffer.
@@ -4523,10 +4562,8 @@ popup_free(win_T *wp)
     if (gui.in_use)
 	gui_gtk4_remove_image(wp);
 #endif
-#if defined(FEAT_GUI_GTK) && defined(FEAT_IMAGE_CAIRO)
-# if !GTK_CHECK_VERSION(4,0,0)
-    popup_image_clear_cairo(wp);
-# endif
+#ifdef POPUP_IMAGE_CLEAR_GUI
+    popup_image_clear_gui(wp);
 #endif
     sign_undefine_by_name(popup_get_sign_name(wp), FALSE);
     wp->w_buffer->b_locked = FALSE;
@@ -4605,6 +4642,11 @@ popup_close(int id, int force)
 		first_popupwin = wp->w_next;
 	    else
 		prev->w_next = wp->w_next;
+#ifdef FEAT_TERMINAL
+	    // If the popup to be closed is opaque, terminal windows under
+	    // the popup should trigger a force repaint of their windows.
+	    redraw_win_under_opacity_popup(wp);
+#endif
 	    popup_free(wp);
 	    return OK;
 	}
@@ -4648,6 +4690,11 @@ popup_close_tabpage(tabpage_T *tp, int id, int force)
 		*root = wp->w_next;
 	    else
 		prev->w_next = wp->w_next;
+#ifdef FEAT_TERMINAL
+	    // If the popup to be closed is opaque, terminal windows under
+	    // the popup should trigger a force repaint of their windows.
+	    redraw_win_under_opacity_popup(wp);
+#endif
 	    popup_free(wp);
 	    return OK;
 	}
@@ -5344,7 +5391,11 @@ get_padding_border(dict_T *dict, int *array, char *name)
     if (list == NULL)
 	return;
 
-    dict_add_list(dict, name, list);
+    if (dict_add_list(dict, name, list) == FAIL)
+    {
+	list_unref(list);
+	return;
+    }
     if (array[0] != 1 || array[1] != 1 || array[2] != 1 || array[3] != 1)
 	for (i = 0; i < 4; ++i)
 	    list_append_number(list, array[i]);
@@ -5371,7 +5422,11 @@ get_borderhighlight(dict_T *dict, win_T *wp)
     if (list == NULL)
 	return;
 
-    dict_add_list(dict, "borderhighlight", list);
+    if (dict_add_list(dict, "borderhighlight", list) == FAIL)
+    {
+	list_unref(list);
+	return;
+    }
     // When all highlights are NULL (cleared to empty list), return empty list.
     if (i == 4)
 	return;
@@ -5400,7 +5455,11 @@ get_borderchars(dict_T *dict, win_T *wp)
     if (list == NULL)
 	return;
 
-    dict_add_list(dict, "borderchars", list);
+    if (dict_add_list(dict, "borderchars", list) == FAIL)
+    {
+	list_unref(list);
+	return;
+    }
     for (i = 0; i < 8; ++i)
     {
 	len = mb_char2bytes(wp->w_border_char[i], buf);
@@ -5419,16 +5478,24 @@ get_moved_list(dict_T *dict, win_T *wp)
     list = list_alloc();
     if (list != NULL)
     {
-	dict_add_list(dict, "moved", list);
-	list_append_number(list, wp->w_popup_lnum);
-	list_append_number(list, wp->w_popup_mincol);
-	list_append_number(list, wp->w_popup_maxcol);
+	if (dict_add_list(dict, "moved", list) == FAIL)
+	    list_unref(list);
+	else
+	{
+	    list_append_number(list, wp->w_popup_lnum);
+	    list_append_number(list, wp->w_popup_mincol);
+	    list_append_number(list, wp->w_popup_maxcol);
+	}
     }
     list = list_alloc();
     if (list == NULL)
 	return;
 
-    dict_add_list(dict, "mousemoved", list);
+    if (dict_add_list(dict, "mousemoved", list) == FAIL)
+    {
+	list_unref(list);
+	return;
+    }
     list_append_number(list, wp->w_popup_mouse_row);
     list_append_number(list, wp->w_popup_mouse_mincol);
     list_append_number(list, wp->w_popup_mouse_maxcol);
@@ -6095,8 +6162,11 @@ popup_mark_opacity_zindex(win_T *wp)
 
     width = popup_width(wp);
     height = popup_height(wp);
+    // w_winrow/w_wincol are visible cells (>= 0); w_popup_topoff rows are
+    // clipped off the top.
     for (r = wp->w_winrow;
-		       r < wp->w_winrow + height && r < screen_Rows; ++r)
+		       r < wp->w_winrow + height - wp->w_popup_topoff
+						&& r < screen_Rows; ++r)
 	for (c = wp->w_wincol;
 		 c < wp->w_wincol + width - wp->w_popup_leftoff
 						&& c < screen_Columns; ++c)
@@ -6392,7 +6462,7 @@ may_update_popup_mask(int type)
 	    continue;
 
 	{
-	    int mask_start = wp->w_winrow + wp->w_popup_topoff;
+	    int mask_start = wp->w_winrow;
 	    int mask_end = mask_start + height;
 	    int mask_col_start = wp->w_wincol + wp->w_popup_leftclip;
 	    int mask_col_end = wp->w_wincol + width - wp->w_popup_leftoff
@@ -6795,9 +6865,13 @@ popup_image_gui_clip(
 	int	*draw_h)
 {
     popup_clip_T    cl;
-    int		    cell_x = gui.char_width > 0 ? gui.char_width : 8;
-    int		    cell_y = gui.char_height > 0 ? gui.char_height : 16;
+    // "gui.char_*" are in logical pixels, must convert to physical first,
+    // because all the other dimensions are in physical pixels.
+    int		    cell_x = LOG2PHY(gui.char_width > 0 ? gui.char_width : 8);
+    int		    cell_y = LOG2PHY(gui.char_height > 0 ? gui.char_height : 16);
     win_T	    *cw;
+    int		    visible_w;
+    int		    visible_h;
 
     popup_compute_clip(wp, &cl);
     *row += cl.clip_top_content;
@@ -6827,6 +6901,18 @@ popup_image_gui_clip(
 	*draw_w = 0;
     if (*draw_h < 0)
 	*draw_h = 0;
+
+    // If image is larger than the actual screen size, then clip it. Maybe best
+    // solution would be to somehow make popup win bigger than the screen size
+    // (as if 'nowrap' is on). However that would require a lot of changes so
+    // just clip the image for now.
+    visible_w = wp->w_width - cl.clip_left_content - cl.clip_right_content;
+    visible_h = wp->w_height - cl.clip_top_content - cl.clip_bot_content;
+
+    if (visible_w > 0)
+	*draw_w = MIN(*draw_w, visible_w * cell_x);
+    if (visible_h > 0)
+	*draw_h = MIN(*draw_h, visible_h * cell_y);
 }
 # endif
 
@@ -7055,12 +7141,12 @@ popup_emit_image(win_T *wp)
     // vim still thinks it is at the image origin, so the relative-move
     // optimisation would otherwise place the cursor on the line just
     // after the image.
-    out_str((char_u *)"\033[?25l");
+    cursor_off();
     term_windgoto(row, col);
     out_str(wp->w_popup_image_seq);
     screen_start();
     setcursor_mayforce(TRUE);
-    out_str((char_u *)"\033[?25h");
+    cursor_on();
     out_flush();
 
     // The sixel bytes just painted over every cell of the emitted rectangle,
@@ -7142,10 +7228,12 @@ popup_image_clear_kitty(win_T *wp)
 }
 # endif
 
-# if defined(FEAT_GUI_GTK) && defined(FEAT_IMAGE_CAIRO)
-#  if !GTK_CHECK_VERSION(4,0,0)
+# ifdef POPUP_IMAGE_CLEAR_GUI
+/*
+ * Redraw the area the image of "wp" was drawn in, the popup goes away.
+ */
     static void
-popup_image_clear_cairo(win_T *wp)
+popup_image_clear_gui(win_T *wp)
 {
     if (!gui.in_use
 	    || wp->w_popup_image_emit_cells_w <= 0
@@ -7161,7 +7249,6 @@ popup_image_clear_cairo(win_T *wp)
     wp->w_popup_image_emit_cells_w = 0;
     wp->w_popup_image_emit_cells_h = 0;
 }
-#  endif
 # endif
 
 # if defined(FEAT_IMAGE_SIXEL) || defined(FEAT_IMAGE_KITTY)
@@ -7225,7 +7312,10 @@ popup_maybe_emit_image_rect(
     int img_left, img_top, img_right, img_bottom;
     int src_x, src_y, draw_w, draw_h;
 
-    if (!gui.in_use || wp->w_popup_image_data == NULL
+    // This is called for every popup, also the hidden ones: the cursor undraw
+    // and WM_PAINT paths do not go through find_next_popup().
+    if (!gui.in_use || (wp->w_popup_flags & POPF_HIDDEN)
+	    || wp->w_popup_image_data == NULL
 	    || wp->w_popup_image_w <= 0 || wp->w_popup_image_h <= 0)
 	return;
 
@@ -7424,7 +7514,8 @@ update_popups(void (*win_update)(win_T *wp))
 							- wp->w_popup_leftoff;
 	if (wp->w_wincol + left_extra < 0)
 	    left_extra = -wp->w_wincol;
-	wp->w_winrow += top_off;
+	// Move to the content top, skipping any clipped top border/padding.
+	wp->w_winrow += MAX(top_off - wp->w_popup_topoff, 0);
 	wp->w_wincol += left_extra;
 
 	// Draw the popup text, unless it's off screen.
@@ -7457,14 +7548,8 @@ update_popups(void (*win_update)(win_T *wp))
 		wp->w_cursor.lnum = wp->w_botline - 1;
 	}
 
-	wp->w_winrow -= top_off;
+	wp->w_winrow -= MAX(top_off - wp->w_popup_topoff, 0);
 	wp->w_wincol -= left_extra;
-
-	// "clipwindow" with top-clip shifts all popup decorations down so the
-	// first visible row of the popup lands at the host window's top edge.
-	// Apply the shift before drawing borders/padding/etc. and restore at
-	// the end of this popup's iteration.
-	wp->w_winrow += wp->w_popup_topoff;
 
 	// Add offset for border and padding if not done already.
 	if ((wp->w_flags & WFLAG_WCOL_OFF_ADDED) == 0)
@@ -7866,10 +7951,6 @@ update_popups(void (*win_update)(win_T *wp))
 
 	if (override_success)
 	    pop_highlight_overrides();
-
-	// Undo the topoff shift applied before drawing the borders so the
-	// next iteration sees the popup's logical winrow.
-	wp->w_winrow -= wp->w_popup_topoff;
 
 #ifdef FEAT_IMAGE
 	// Emit the popup image right after this popup's decorations land in
