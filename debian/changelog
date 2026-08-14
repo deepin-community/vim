@@ -1,3 +1,9 @@
+vim (2:9.2.0858-1deepin1) unstable; urgency=medium
+
+  * Set-NoDisplay-true-for-vim-desktop.patch
+
+ -- lichenggang <lichenggang@uniontech.com>  Fri, 14 Aug 2026 15:32:28 +0800
+
 vim (2:9.2.0858-1) unstable; urgency=medium
 
   * New upstream tag
