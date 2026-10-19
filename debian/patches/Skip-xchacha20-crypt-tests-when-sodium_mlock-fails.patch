@@ -1,0 +1,47 @@
+From: Tianyu Chen <sweetyfish@deepin.org>
+Date: Mon, 19 Oct 2026 18:09:53 +0800
+Subject: Skip xchacha20 crypt tests when sodium_mlock() fails
+
+---
+ src/testdir/test_crypt.vim | 18 +++++++++++++++---
+ 1 file changed, 15 insertions(+), 3 deletions(-)
+
+diff --git a/src/testdir/test_crypt.vim b/src/testdir/test_crypt.vim
+index 5c9dfe3..65a68d3 100644
+--- a/src/testdir/test_crypt.vim
++++ b/src/testdir/test_crypt.vim
+@@ -171,7 +171,11 @@ func Test_uncrypt_xchacha20()
+   END
+   " the file should be in latin1 encoding, this makes sure that readfile()
+   " retries several times converting the multi-byte characters
+-  call Uncrypt_stable_xxd('xchacha20', hex, "sodium_crypt", ["abcdefghijklmnopqrstuvwxyzäöü", "ZZZ_äüöÄÜÖ_!@#$%^&*()_+=-`~"], 0)
++  try
++    call Uncrypt_stable_xxd('xchacha20', hex, "sodium_crypt", ["abcdefghijklmnopqrstuvwxyzäöü", "ZZZ_äüöÄÜÖ_!@#$%^&*()_+=-`~"], 0)
++  catch /^Vim\%((\a\+)\)\=:E1230:/ " sodium_mlock() not possible, may happen at Github CI
++    throw 'Skipped: sodium_mlock() not possible'
++  endtry
+ endfunc
+ 
+ func Test_uncrypt_xchacha20v2_custom()
+@@ -251,11 +255,19 @@ func Test_uncrypt_xchacha20_2()
+   " swapfile disabled
+   call assert_equal(0, &swapfile)
+   call assert_match("Note: Encryption of swapfile not supported, disabling swap file", execute(':messages'))
+-  w!
++  try
++    w!
++  catch /^Vim\%((\a\+)\)\=:E1230:/ " sodium_mlock() not possible, may happen at Github CI
++    throw 'Skipped: sodium_mlock() not possible'
++  endtry
+   " encrypted using xchacha20
+   call assert_match('\[xchacha20\]', execute(':messages'))
+   bw!
+-  call feedkeys(":sp Xcrypt_sodium.txt\<CR>sodium\<CR>", 'xt')
++  try
++    call feedkeys(":sp Xcrypt_sodium.txt\<CR>sodium\<CR>", 'xt')
++  catch /^Vim\%((\a\+)\)\=:E1230:/ " sodium_mlock() not possible, may happen at Github CI
++    throw 'Skipped: sodium_mlock() not possible'
++  endtry
+   " successfully decrypted
+   call assert_equal(range(1, 4000)->map( {_, v -> string(v)}), getline(1,'$'))
+   set key=

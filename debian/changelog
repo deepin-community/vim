@@ -1,3 +1,10 @@
+vim (2:9.2.0858-1deepin2) unstable; urgency=medium
+
+  * Skip xchacha20 crypt tests when sodium_mlock() fails.
+  * Skip flaky Test_linematch_diff_grouping screendump test.
+
+ -- Tianyu Chen <sweetyfish@deepin.org>  Mon, 19 Oct 2026 18:10:32 +0800
+
 vim (2:9.2.0858-1deepin1) unstable; urgency=medium
 
   * Set-NoDisplay-true-for-vim-desktop.patch
